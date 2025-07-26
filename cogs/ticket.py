@@ -1,6 +1,8 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+import asyncio
+from datetime import timedelta, datetime
 
 class TicketCog(commands.Cog):
     def __init__(self, bot):
@@ -14,7 +16,7 @@ class TicketCog(commands.Cog):
         title="Embed title",
         description="Embed description",
         image_url="Optional image URL",
-        button1="First button label",
+        button1="First button label (e.g., 🎫 Support)",
         button2="Second button label",
         button3="Third button label",
         button4="Fourth button label"
@@ -40,9 +42,9 @@ class TicketCog(commands.Cog):
         view = TicketView(category.id, log_channel.id)
         for label in [button1, button2, button3, button4]:
             if label:
-                # Check for emoji in label (format: "🔧 Support")
+                # Handle emoji if provided (e.g., "🎫 Support")
                 parts = label.strip().split(" ", 1)
-                if len(parts) == 2 and parts[0].startswith("<") or parts[0].isemoji():
+                if len(parts) == 2 and (parts[0].startswith("<") or parts[0].isprintable()):
                     emoji, label_text = parts
                 else:
                     emoji, label_text = None, label
@@ -61,7 +63,7 @@ class TicketView(discord.ui.View):
 
 class TicketButton(discord.ui.Button):
     def __init__(self, label, category_id, log_channel_id, emoji=None):
-        super().__init__(label=label, style=discord.ButtonStyle.green, emoji=emoji)
+        super().__init__(label=label, style=discord.ButtonStyle.secondary, emoji=emoji)  # Gray buttons
         self.label = label
         self.emoji = emoji
         self.category_id = category_id
@@ -85,7 +87,6 @@ class TicketButton(discord.ui.Button):
             topic=f"Ticket opened by {interaction.user} via {self.label}"
         )
 
-        # Add Claim & Close buttons inside the ticket
         view = TicketManagementView(ticket_channel, log_channel, interaction.user)
 
         await ticket_channel.send(
@@ -120,7 +121,7 @@ class TicketManagementView(discord.ui.View):
         if interaction.channel != self.ticket_channel:
             return await interaction.response.send_message("❌ This button can't be used here.", ephemeral=True)
         await interaction.response.send_message("⏳ Closing this ticket in 5 seconds...", ephemeral=True)
-        await discord.utils.sleep_until(discord.utils.utcnow() + discord.utils.timedelta(seconds=5))
+        await asyncio.sleep(5)
         await self.ticket_channel.delete()
         if self.log_channel:
             await self.log_channel.send(f"❌ Ticket created by {self.creator.mention} closed by {interaction.user.mention}.")
