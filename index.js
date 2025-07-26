@@ -13,12 +13,12 @@ import fs from 'fs';
 // It's highly recommended to use environment variables for sensitive information.
 // For simplicity in this example, we're hardcoding, but for production, use a .env file.
 // Example: process.env.DISCORD_BOT_TOKEN, process.env.CLIENT_ID
-const BOT_TOKEN = 'YOUR_BOT_TOKEN'; // <<< IMPORTANT: Replace with your bot's token!
-const CLIENT_ID = 'YOUR_CLIENT_ID'; // <<< IMPORTANT: Replace with your bot's Client ID!
+const BOT_TOKEN = 'MTM4MTMyODM2MzA1MzkxMjA3NA.Gbb0Kp.y96-QuBnYqIdMvWBz7_0VSAIGFcykYdS7_PFPs'; // <<< IMPORTANT: Replace with your bot's token!
+const CLIENT_ID = '1375756602216284223'; // <<< IMPORTANT: Replace with your bot's Client ID!
 
 // Define the bot's command prefix for traditional text commands.
 // Note: Slash commands are generally preferred in modern Discord.js bots.
-const COMMAND_PREFIX = '!';
+const COMMAND_PREFIX = '&';
 
 // Define intents. Intents specify which events your bot wants to receive from Discord.
 // For a public bot, you often need specific intents enabled in the Discord Developer Portal
