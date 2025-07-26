@@ -8,6 +8,7 @@ CONFIG_PATH = "data/config.json"
 
 def load_config():
     if not os.path.exists(CONFIG_PATH):
+        os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
         with open(CONFIG_PATH, 'w') as f:
             json.dump({}, f)
     with open(CONFIG_PATH, 'r') as f:
@@ -54,6 +55,10 @@ class AutoMod(commands.Cog):
         await interaction.response.send_message(
             f"✅ Anti-spam has been {'enabled' if enable else 'disabled'} with limit set to {count}.", ephemeral=True
         )
+
+    async def cog_load(self):
+        self.bot.tree.add_command(self.anti_link)
+        self.bot.tree.add_command(self.anti_spam)
 
 async def setup(bot):
     await bot.add_cog(AutoMod(bot))
