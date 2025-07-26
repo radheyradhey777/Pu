@@ -7,6 +7,8 @@ class TicketCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    # ADMIN ONLY COMMAND
+    @app_commands.checks.has_permissions(administrator=True)
     @app_commands.command(name="ticket", description="Setup ticket panel")
     @app_commands.describe(
         panel_channel="Channel to send the ticket panel",
@@ -56,6 +58,12 @@ class TicketCog(commands.Cog):
         await panel_channel.send(embed=embed, view=view)
         await interaction.response.send_message("✅ Ticket panel sent successfully.", ephemeral=True)
 
+    # Error handler for permission check
+    @ticket_setup.error
+    async def ticket_setup_error(self, interaction: discord.Interaction, error):
+        if isinstance(error, app_commands.errors.MissingPermissions):
+            await interaction.response.send_message("🚫 You must be an **Administrator** to use this command.", ephemeral=True)
+
 
 class TicketView(discord.ui.View):
     def __init__(self, category_id, log_channel_id, staff_role_id):
@@ -79,12 +87,14 @@ class TicketButton(discord.ui.Button):
         category = guild.get_channel(self.category_id)
         log_channel = guild.get_channel(self.log_channel_id)
 
+        # Check if user already has a ticket
         for channel in category.text_channels:
             if channel.topic and str(interaction.user.id) in channel.topic:
                 return await interaction.response.send_message(
                     f"⚠️ You already have an open ticket: {channel.mention}", ephemeral=True
                 )
 
+        # Permissions
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(view_channel=False),
             interaction.user: discord.PermissionOverwrite(view_channel=True, send_messages=True),
@@ -106,7 +116,7 @@ class TicketButton(discord.ui.Button):
             view=view
         )
 
-        # ADMIN VIEW EMBED
+        # Admin Log Embed
         admin_embed = discord.Embed(
             title="Admin View",
             description=(
@@ -171,6 +181,6 @@ class TicketManagementView(discord.ui.View):
             await self.log_channel.send(f"❌ Ticket created by {self.creator.mention} closed by {interaction.user.mention}.")
 
 
-# Setup function for the cog
-async def setup(bot):
+# Setup function for loading the cog
+async def setup(bot: commands.Bot):
     await bot.add_cog(TicketCog(bot))
