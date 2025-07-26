@@ -1,16 +1,18 @@
 {
   "name": "my-discord-bot",
   "version": "1.0.0",
-  "description": "",
+  "description": "A modern Discord bot with slash commands",
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "deploy": "node deploy-commands.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": ["discord", "bot", "discord.js", "slash-commands"],
+  "author": "YourName",
+  "license": "MIT",
   "dependencies": {
-    "discord.js": "^14.0.0"
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.3.2"
   }
 }
