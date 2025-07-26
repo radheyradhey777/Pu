@@ -79,17 +79,24 @@ class TicketButton(discord.ui.Button):
         category = guild.get_channel(self.category_id)
         log_channel = guild.get_channel(self.log_channel_id)
 
+        for channel in category.text_channels:
+            if channel.topic and str(interaction.user.id) in channel.topic:
+                return await interaction.response.send_message(
+                    f"⚠️ You already have an open ticket: {channel.mention}", ephemeral=True
+                )
+
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(view_channel=False),
             interaction.user: discord.PermissionOverwrite(view_channel=True, send_messages=True),
         }
 
         channel_name = f"{self.label.lower().replace(' ', '-')}-{interaction.user.name}".replace('🔧', '').strip()
+
         ticket_channel = await guild.create_text_channel(
             name=channel_name[:90],
             overwrites=overwrites,
             category=category,
-            topic=f"Ticket opened by {interaction.user} via {self.label}"
+            topic=f"Ticket opened by {interaction.user} via {self.label} | User ID: {interaction.user.id}"
         )
 
         view = TicketManagementView(ticket_channel, log_channel, interaction.user, self.staff_role_id)
@@ -98,6 +105,24 @@ class TicketButton(discord.ui.Button):
             f"{interaction.user.mention}, your **{self.label}** ticket is open. Please wait for a staff member.",
             view=view
         )
+
+        # ADMIN VIEW EMBED
+        admin_embed = discord.Embed(
+            title="Admin View",
+            description=(
+                f"**Ticket Type:** {self.label}\n"
+                f"**Opened By:** {interaction.user.mention} ({interaction.user})\n"
+                f"**Channel:** {ticket_channel.mention}\n"
+                f"**User ID:** `{interaction.user.id}`"
+            ),
+            color=discord.Color.red()
+        )
+
+        if self.staff_role_id:
+            staff_role = guild.get_role(self.staff_role_id)
+            await ticket_channel.send(content=staff_role.mention, embed=admin_embed)
+        else:
+            await ticket_channel.send(embed=admin_embed)
 
         await interaction.response.send_message(f"🎟️ Ticket created: {ticket_channel.mention}", ephemeral=True)
 
@@ -146,5 +171,6 @@ class TicketManagementView(discord.ui.View):
             await self.log_channel.send(f"❌ Ticket created by {self.creator.mention} closed by {interaction.user.mention}.")
 
 
+# Setup function for the cog
 async def setup(bot):
     await bot.add_cog(TicketCog(bot))
