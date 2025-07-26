@@ -11,8 +11,14 @@ def load_config():
         os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
         with open(CONFIG_PATH, 'w') as f:
             json.dump({}, f)
-    with open(CONFIG_PATH, 'r') as f:
-        return json.load(f)
+    try:
+        with open(CONFIG_PATH, 'r') as f:
+            return json.load(f)
+    except json.JSONDecodeError:
+        # Reset corrupted config
+        with open(CONFIG_PATH, 'w') as f:
+            json.dump({}, f)
+        return {}
 
 def save_config(config):
     with open(CONFIG_PATH, 'w') as f:
@@ -57,6 +63,7 @@ class AutoMod(commands.Cog):
         )
 
     async def cog_load(self):
+        # Register slash commands
         self.bot.tree.add_command(self.anti_link)
         self.bot.tree.add_command(self.anti_spam)
 
