@@ -2,8 +2,13 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from datetime import datetime, timedelta
-import asyncio
 from typing import Optional
+
+# --- Admin Permission Check ---
+def is_admin():
+    def predicate(interaction: discord.Interaction) -> bool:
+        return interaction.user.guild_permissions.administrator
+    return app_commands.check(predicate)
 
 class Moderation(commands.Cog):
     """
@@ -70,6 +75,7 @@ class Moderation(commands.Cog):
 
     # --- Moderation Commands ---
 
+    @is_admin()
     @app_commands.command(name="warn", description="Warn a member")
     async def warn(self, interaction: discord.Interaction, member: discord.Member, reason: str):
         if not await self.check_permissions(interaction, member):
@@ -99,6 +105,7 @@ class Moderation(commands.Cog):
         except discord.Forbidden:
             pass
 
+    @is_admin()
     @app_commands.command(name="warnings", description="View warnings for a member")
     async def warnings(self, interaction: discord.Interaction, member: discord.Member):
         if not interaction.user.guild_permissions.manage_messages:
@@ -119,6 +126,7 @@ class Moderation(commands.Cog):
             )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    @is_admin()
     @app_commands.command(name="mute", description="Mute a member")
     async def mute(self, interaction: discord.Interaction, member: discord.Member, reason: str = "No reason", duration: str = None):
         if not await self.check_permissions(interaction, member): return
@@ -157,6 +165,7 @@ class Moderation(commands.Cog):
         except discord.Forbidden:
             await interaction.response.send_message("❌ Cannot mute this member.", ephemeral=True)
 
+    @is_admin()
     @app_commands.command(name="unmute", description="Unmute a member")
     async def unmute(self, interaction: discord.Interaction, member: discord.Member, reason: str = "No reason"):
         if not await self.check_permissions(interaction, member): return
@@ -180,10 +189,7 @@ class Moderation(commands.Cog):
         except discord.Forbidden:
             await interaction.response.send_message("❌ Cannot unmute this member.", ephemeral=True)
 
-    # Additional commands like kick, ban, timeout, unban, etc., can be added below similarly.
-
-    # --- Utility Commands ---
-
+    @is_admin()
     @app_commands.command(name="serverinfo", description="Shows server information")
     async def serverinfo(self, interaction: discord.Interaction):
         guild = interaction.guild
@@ -201,6 +207,16 @@ class Moderation(commands.Cog):
         embed.add_field(name="Created", value=f"<t:{int(guild.created_at.timestamp())}:F>")
         embed.add_field(name="Boosts", value=f"{guild.premium_subscription_count} (Level {guild.premium_tier})")
         await interaction.response.send_message(embed=embed)
+
+    # --- Global Error Handler for Admin Commands ---
+    @warn.error
+    @warnings.error
+    @mute.error
+    @unmute.error
+    @serverinfo.error
+    async def on_admin_command_error(self, interaction: discord.Interaction, error):
+        if isinstance(error, app_commands.CheckFailure):
+            await interaction.response.send_message("❌ You must be a server administrator to use this command.", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(Moderation(bot))
