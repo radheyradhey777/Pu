@@ -1,18 +1,15 @@
 {
-  "name": "my-discord-bot",
+  "name": "reoti-discord-bot",
   "version": "1.0.0",
-  "description": "A modern Discord bot with slash commands",
+  "description": "Reoti public Discord bot with giveaway, auto-mod, autoresponse, etc.",
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "deploy": "node deploy-commands.js"
+    "start": "node index.js"
   },
-  "keywords": ["discord", "bot", "discord.js", "slash-commands"],
-  "author": "YourName",
-  "license": "MIT",
   "dependencies": {
-    "discord.js": "^14.14.1",
-    "dotenv": "^16.3.2"
+    "discord.js": "^14.13.0",
+    "dotenv": "^16.3.1",
+    "fs": "^0.0.1-security"
   }
 }
