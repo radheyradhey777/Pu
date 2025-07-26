@@ -14,9 +14,14 @@ async def on_ready():
     print(f"Bot is ready. Logged in as {bot.user}")
     await bot.tree.sync()
 
-# Load all cogs
-for filename in os.listdir("./cogs"):
-    if filename.endswith(".py"):
-        bot.load_extension(f"cogs.{filename[:-3]}")
+async def load_cogs():
+    for filename in os.listdir("./cogs"):
+        if filename.endswith(".py"):
+            await bot.load_extension(f"cogs.{filename[:-3]}")
 
-bot.run(TOKEN)
+async def main():
+    await load_cogs()
+    await bot.start(TOKEN)
+
+import asyncio
+asyncio.run(main())
