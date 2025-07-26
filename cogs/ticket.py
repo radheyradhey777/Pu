@@ -58,12 +58,10 @@ class TicketCog(commands.Cog):
         await panel_channel.send(embed=embed, view=view)
         await interaction.response.send_message("✅ Ticket panel sent successfully.", ephemeral=True)
 
-    # Error handler for permission check
     @ticket_setup.error
     async def ticket_setup_error(self, interaction: discord.Interaction, error):
         if isinstance(error, app_commands.errors.MissingPermissions):
             await interaction.response.send_message("🚫 You must be an **Administrator** to use this command.", ephemeral=True)
-
 
 class TicketView(discord.ui.View):
     def __init__(self, category_id, log_channel_id, staff_role_id):
@@ -71,7 +69,6 @@ class TicketView(discord.ui.View):
         self.category_id = category_id
         self.log_channel_id = log_channel_id
         self.staff_role_id = staff_role_id
-
 
 class TicketButton(discord.ui.Button):
     def __init__(self, label, category_id, log_channel_id, staff_role_id=None, emoji=None):
@@ -87,21 +84,18 @@ class TicketButton(discord.ui.Button):
         category = guild.get_channel(self.category_id)
         log_channel = guild.get_channel(self.log_channel_id)
 
-        # Check if user already has a ticket
         for channel in category.text_channels:
             if channel.topic and str(interaction.user.id) in channel.topic:
                 return await interaction.response.send_message(
                     f"⚠️ You already have an open ticket: {channel.mention}", ephemeral=True
                 )
 
-        # Permissions
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(view_channel=False),
             interaction.user: discord.PermissionOverwrite(view_channel=True, send_messages=True),
         }
 
         channel_name = f"{self.label.lower().replace(' ', '-')}-{interaction.user.name}".replace('🔧', '').strip()
-
         ticket_channel = await guild.create_text_channel(
             name=channel_name[:90],
             overwrites=overwrites,
@@ -116,7 +110,6 @@ class TicketButton(discord.ui.Button):
             view=view
         )
 
-        # Admin Log Embed
         admin_embed = discord.Embed(
             title="Admin View",
             description=(
@@ -139,7 +132,6 @@ class TicketButton(discord.ui.Button):
         if log_channel:
             await log_channel.send(f"📨 {interaction.user.mention} opened a **{self.label}** ticket in {ticket_channel.mention}.")
 
-
 class TicketManagementView(discord.ui.View):
     def __init__(self, ticket_channel, log_channel, creator, staff_role_id):
         super().__init__(timeout=None)
@@ -158,9 +150,6 @@ class TicketManagementView(discord.ui.View):
         if not self.is_staff(interaction.user):
             return await interaction.response.send_message("🚫 You are not allowed to claim tickets.", ephemeral=True)
 
-        if interaction.channel != self.ticket_channel:
-            return await interaction.response.send_message("❌ This button can't be used here.", ephemeral=True)
-
         await self.ticket_channel.set_permissions(interaction.user, view_channel=True, send_messages=True)
         await self.ticket_channel.send(f"🔒 {interaction.user.mention} has **claimed** this ticket.")
         if self.log_channel:
@@ -171,16 +160,12 @@ class TicketManagementView(discord.ui.View):
         if not self.is_staff(interaction.user):
             return await interaction.response.send_message("🚫 You are not allowed to close tickets.", ephemeral=True)
 
-        if interaction.channel != self.ticket_channel:
-            return await interaction.response.send_message("❌ This button can't be used here.", ephemeral=True)
-
         await interaction.response.send_message("⏳ Closing this ticket in 5 seconds...", ephemeral=True)
         await asyncio.sleep(5)
         await self.ticket_channel.delete()
         if self.log_channel:
             await self.log_channel.send(f"❌ Ticket created by {self.creator.mention} closed by {interaction.user.mention}.")
 
-
-# Setup function for loading the cog
+# Register the cog
 async def setup(bot: commands.Bot):
     await bot.add_cog(TicketCog(bot))
