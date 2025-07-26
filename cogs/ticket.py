@@ -2,12 +2,30 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import asyncio
+import json
+import os
 
+TICKET_CONFIG_FILE = "ticket_state.json"
+
+# === Persistent Storage ===
+class TicketStorage:
+    @staticmethod
+    def save(data):
+        with open(TICKET_CONFIG_FILE, 'w') as f:
+            json.dump(data, f, indent=4)
+
+    @staticmethod
+    def load():
+        if not os.path.exists(TICKET_CONFIG_FILE):
+            return []
+        with open(TICKET_CONFIG_FILE, 'r') as f:
+            return json.load(f)
+
+# === Main Cog ===
 class TicketCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # ADMIN ONLY COMMAND
     @app_commands.checks.has_permissions(administrator=True)
     @app_commands.command(name="ticket", description="Setup ticket panel")
     @app_commands.describe(
@@ -43,19 +61,25 @@ class TicketCog(commands.Cog):
             embed.set_image(url=image_url)
 
         view = TicketView(category.id, log_channel.id, staff_role.id if staff_role else None)
-        for label in [button1, button2, button3, button4]:
+        buttons = [button1, button2, button3, button4]
+        saved_buttons = []
+
+        for label in buttons:
             if label:
                 parts = label.strip().split(" ", 1)
                 emoji, label_text = (parts[0], parts[1]) if len(parts) == 2 else (None, label)
-                view.add_item(TicketButton(
-                    label=label_text,
-                    emoji=emoji,
-                    category_id=category.id,
-                    log_channel_id=log_channel.id,
-                    staff_role_id=staff_role.id if staff_role else None
-                ))
+                view.add_ticket_button(label_text, emoji)
+                saved_buttons.append({"label": label_text, "emoji": emoji})
 
         await panel_channel.send(embed=embed, view=view)
+
+        TicketStorage.save([{
+            "category_id": category.id,
+            "log_channel_id": log_channel.id,
+            "staff_role_id": staff_role.id if staff_role else None,
+            "buttons": saved_buttons
+        }])
+
         await interaction.response.send_message("✅ Ticket panel sent successfully.", ephemeral=True)
 
     @ticket_setup.error
@@ -63,13 +87,22 @@ class TicketCog(commands.Cog):
         if isinstance(error, app_commands.errors.MissingPermissions):
             await interaction.response.send_message("🚫 You must be an **Administrator** to use this command.", ephemeral=True)
 
+# === Ticket Panel View ===
 class TicketView(discord.ui.View):
     def __init__(self, category_id, log_channel_id, staff_role_id):
         super().__init__(timeout=None)
         self.category_id = category_id
         self.log_channel_id = log_channel_id
         self.staff_role_id = staff_role_id
+        self.added_buttons = set()
 
+    def add_ticket_button(self, label, emoji=None):
+        if label in self.added_buttons:
+            return
+        self.add_item(TicketButton(label, self.category_id, self.log_channel_id, self.staff_role_id, emoji))
+        self.added_buttons.add(label)
+
+# === Ticket Button ===
 class TicketButton(discord.ui.Button):
     def __init__(self, label, category_id, log_channel_id, staff_role_id=None, emoji=None):
         super().__init__(label=label, style=discord.ButtonStyle.secondary, emoji=emoji)
@@ -104,7 +137,6 @@ class TicketButton(discord.ui.Button):
         )
 
         view = TicketManagementView(ticket_channel, log_channel, interaction.user, self.staff_role_id)
-
         await ticket_channel.send(
             f"{interaction.user.mention}, your **{self.label}** ticket is open. Please wait for a staff member.",
             view=view
@@ -132,6 +164,7 @@ class TicketButton(discord.ui.Button):
         if log_channel:
             await log_channel.send(f"📨 {interaction.user.mention} opened a **{self.label}** ticket in {ticket_channel.mention}.")
 
+# === Management Buttons (Claim/Close) ===
 class TicketManagementView(discord.ui.View):
     def __init__(self, ticket_channel, log_channel, creator, staff_role_id):
         super().__init__(timeout=None)
@@ -166,6 +199,13 @@ class TicketManagementView(discord.ui.View):
         if self.log_channel:
             await self.log_channel.send(f"❌ Ticket created by {self.creator.mention} closed by {interaction.user.mention}.")
 
-# Register the cog
+# === Register Cog and Views on Restart ===
 async def setup(bot: commands.Bot):
     await bot.add_cog(TicketCog(bot))
+
+    # Register persistent views on restart
+    for config in TicketStorage.load():
+        view = TicketView(config['category_id'], config['log_channel_id'], config['staff_role_id'])
+        for button in config['buttons']:
+            view.add_ticket_button(button['label'], button['emoji'])
+        bot.add_view(view)
