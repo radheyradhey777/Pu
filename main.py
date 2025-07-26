@@ -46,9 +46,13 @@ async def load_cogs():
                 print(f"❌ Failed to load cog {filename}: {e}")
 
 async def main():
-    keep_alive()  # Start Flask keep-alive
-    await load_cogs()
-    await bot.start(TOKEN)
+    try:
+        keep_alive()
+        await load_cogs()
+        print("✅ Starting bot...")
+        await bot.start(TOKEN)
+    except Exception as e:
+        print(f"❌ Bot start error: {e}")
 
-# Run the bot
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
