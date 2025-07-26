@@ -5,9 +5,11 @@ import re
 import json
 import asyncio
 import os
+from datetime import timedelta
 
 CONFIG_FILE = "automod_config.json"
 
+# Default configuration
 default_config = {
     "enabled": True,
     "filters": {
@@ -20,7 +22,7 @@ default_config = {
     "ignored_roles": [],
     "ignored_users": [],
     "warning_threshold": 3,
-    "punishment_timeout": 5
+    "punishment_timeout": 5  # in minutes
 }
 
 def load_config():
@@ -89,7 +91,7 @@ class AutoModCog(commands.Cog):
             return
         if str(message.author.id) in self.config["ignored_users"]:
             return
-        if any(role.id in self.config["ignored_roles"] for role in message.author.roles):
+        if any(str(role.id) in self.config["ignored_roles"] for role in message.author.roles):
             return
 
         violations = []
@@ -115,13 +117,15 @@ class AutoModCog(commands.Cog):
 
         if self.user_warnings[user_id] >= self.config["warning_threshold"]:
             try:
-                await member.timeout(discord.utils.utcnow() + discord.timedelta(minutes=self.config["punishment_timeout"]))
+                duration = timedelta(minutes=self.config["punishment_timeout"])
+                await member.timeout(discord.utils.utcnow() + duration)
                 await channel.send(f"🚫 {member.mention} has been timed out for repeated violations.")
                 self.user_warnings[user_id] = 0  # Reset warnings after punishment
             except discord.Forbidden:
                 await channel.send("❌ Missing permissions to timeout this user.")
 
     @app_commands.command(name="automod", description="View and configure AutoMod")
+    @app_commands.checks.has_permissions(administrator=True)
     async def automod(self, interaction: discord.Interaction):
         view = AutoModView(self.config, save_callback=save_config)
         await interaction.response.send_message(embed=view.create_embed(), view=view, ephemeral=True)
