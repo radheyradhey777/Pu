@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 
 class AutoMod(commands.Cog):
     """
-    Enhanced Professional Discord AutoMod System
+    Enhanced Professional Discord AutoMod System with Slash Commands
     Features: Anti-Link, Anti-Spam, Bad Words Filter, Enhanced Moderation, Per-Guild Config
     """
     
@@ -317,10 +317,13 @@ class AutoMod(commands.Cog):
                 self.muted_users[guild_id].discard(message.author.id)
             return
 
-    @commands.group(name="automod", invoke_without_command=True)
-    @commands.has_permissions(manage_messages=True)
-    async def automod(self, ctx):
+    # Define the main slash command group for automod
+    @app_commands.group(name="automod", description="Professional Discord moderation system")
+    @app_commands.default_permissions(manage_messages=True) # Set default permissions for the group
+    async def automod(self, interaction: discord.Interaction):
         """Main automod command group"""
+        # This function will be called if only /automod is typed.
+        # It will display the help embed.
         embed = discord.Embed(
             title="🛡️ AutoMod System",
             description="Professional Discord moderation system",
@@ -330,12 +333,12 @@ class AutoMod(commands.Cog):
         embed.add_field(
             name="📊 Commands",
             value=(
-                "`!automod stats` - View moderation statistics\n"
-                "`!automod config` - View current configuration\n"
-                "`!automod toggle <feature>` - Toggle features on/off\n"
-                "`!automod reset [user]` - Reset warnings\n"
-                "`!automod unmute <user>` - Manually unmute user\n"
-                "`!automod violations <user>` - View user violations"
+                "`/automod stats` - View moderation statistics\n"
+                "`/automod config` - View current configuration\n"
+                "`/automod toggle <feature>` - Toggle features on/off\n"
+                "`/automod reset [user]` - Reset warnings\n"
+                "`/automod unmute <user>` - Manually unmute user\n"
+                "`/automod violations <user>` - View user violations"
             ),
             inline=False
         )
@@ -343,21 +346,29 @@ class AutoMod(commands.Cog):
         embed.add_field(
             name="🔧 Configuration",
             value=(
-                "`!automod set spam_threshold <number>`\n"
-                "`!automod set max_mentions <number>`\n"
-                "`!automod set log_channel <channel_name>`\n"
-                "`!automod whitelist role <role_name>`\n"
-                "`!automod whitelist channel <channel_name>`"
+                "`/automod set spam_threshold <number>` (Example: `/automod set spam_threshold 7`)\n"
+                "`/automod set max_mentions <number>`\n"
+                "`/automod set log_channel <channel>` (Example: `/automod set log_channel #mod-logs`)\n"
+                "`/automod set mute_duration <seconds>`\n"
+                "`/automod add bad_word <word>`\n"
+                "`/automod remove bad_word <word>`\n"
+                "`/automod add allowed_domain <domain>`\n"
+                "`/automod remove allowed_domain <domain>`\n"
+                "`/automod add whitelisted_role <role>`\n"
+                "`/automod remove whitelisted_role <role>`\n"
+                "`/automod add whitelisted_channel <channel>`\n"
+                "`/automod remove whitelisted_channel <channel>`"
             ),
             inline=False
         )
         
-        await ctx.send(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=True) # Send ephemeral help message
 
-    @automod.command(name="stats")
-    async def automod_stats(self, ctx):
+    @automod.command(name="stats", description="Display detailed automod statistics")
+    @app_commands.default_permissions(manage_messages=True)
+    async def automod_stats(self, interaction: discord.Interaction):
         """Display detailed automod statistics"""
-        guild_id = ctx.guild.id
+        guild_id = interaction.guild_id
         
         embed = discord.Embed(title="🛡️ AutoMod Statistics", color=0x3498db)
         
@@ -395,12 +406,13 @@ class AutoMod(commands.Cog):
             )
         
         embed.set_footer(text="AutoMod is keeping your server clean! 🧹")
-        await ctx.send(embed=embed)
+        await interaction.response.send_message(embed=embed)
     
-    @automod.command(name="config")
-    async def view_config(self, ctx):
+    @automod.command(name="config", description="View current automod configuration")
+    @app_commands.default_permissions(manage_messages=True)
+    async def view_config(self, interaction: discord.Interaction):
         """View current automod configuration"""
-        config = self.get_guild_config(ctx.guild.id)
+        config = self.get_guild_config(interaction.guild_id)
         
         embed = discord.Embed(title="⚙️ AutoMod Configuration", color=0x95a5a6)
         
@@ -426,38 +438,50 @@ class AutoMod(commands.Cog):
         whitelist_info = (
             f"Roles: {', '.join(config['whitelisted_roles'])}\n"
             f"Channels: {', '.join(config['whitelisted_channels'])}\n"
+            f"Allowed Domains: {', '.join(config['allowed_domains'])}\n"
+            f"Bad Words: {', '.join(config['bad_words'])}\n"
             f"Log Channel: {config.get('log_channel', 'Not set')}"
         )
-        embed.add_field(name="📝 Whitelists", value=whitelist_info, inline=False)
+        embed.add_field(name="📝 Whitelists & Filters", value=whitelist_info, inline=False)
         
-        await ctx.send(embed=embed)
+        await interaction.response.send_message(embed=embed)
     
-    @automod.command(name="toggle")
-    async def toggle_feature(self, ctx, feature: str):
+    @automod.command(name="toggle", description="Toggle automod features on/off")
+    @app_commands.default_permissions(manage_messages=True)
+    @app_commands.choices(feature=[
+        app_commands.Choice(name="Anti-Link", value="anti_link"),
+        app_commands.Choice(name="Bad Words Filter", value="bad_words"),
+        app_commands.Choice(name="Anti-Spam", value="anti_spam"),
+        app_commands.Choice(name="Excessive Caps", value="excessive_caps"),
+        app_commands.Choice(name="Excessive Mentions", value="excessive_mentions")
+    ])
+    async def toggle_feature(self, interaction: discord.Interaction, feature: app_commands.Choice[str]):
         """Toggle automod features on/off"""
-        config = self.get_guild_config(ctx.guild.id)
+        config = self.get_guild_config(interaction.guild_id)
         
-        if feature not in config["enabled_features"]:
-            available = ", ".join(config["enabled_features"].keys())
-            await ctx.send(f"❌ Invalid feature. Available: {available}")
+        feature_name = feature.value
+        
+        if feature_name not in config["enabled_features"]:
+            await interaction.response.send_message(f"❌ Invalid feature. Please select from the provided options.", ephemeral=True)
             return
         
-        config["enabled_features"][feature] = not config["enabled_features"][feature]
+        config["enabled_features"][feature_name] = not config["enabled_features"][feature_name]
         self.save_configs()
         
-        status = "enabled" if config["enabled_features"][feature] else "disabled"
-        await ctx.send(f"✅ {feature.replace('_', ' ').title()} has been {status}.")
-    
-    @automod.command(name="violations")
-    async def view_violations(self, ctx, member: discord.Member):
+        status = "enabled" if config["enabled_features"][feature_name] else "disabled"
+        await interaction.response.send_message(f"✅ {feature.name} has been {status}.")
+
+    @automod.command(name="violations", description="View detailed violation history for a user")
+    @app_commands.default_permissions(manage_messages=True)
+    async def view_violations(self, interaction: discord.Interaction, member: discord.Member):
         """View detailed violation history for a user"""
-        guild_id = ctx.guild.id
+        guild_id = interaction.guild_id
         user_id = member.id
         
         violations = self.user_violations[guild_id][user_id]
         
         if not violations:
-            await ctx.send(f"{member.mention} has no recorded violations.")
+            await interaction.response.send_message(f"{member.mention} has no recorded violations.", ephemeral=True)
             return
         
         embed = discord.Embed(
@@ -479,38 +503,245 @@ class AutoMod(commands.Cog):
         embed.add_field(name="Total Violations", value=len(violations), inline=True)
         
         embed.set_footer(text=f"User ID: {member.id}")
-        await ctx.send(embed=embed)
+        await interaction.response.send_message(embed=embed)
     
-    @automod.command(name="reset")
-    async def reset_warnings(self, ctx, member: discord.Member = None):
+    @automod.command(name="reset", description="Reset warnings for a user or all users")
+    @app_commands.default_permissions(manage_messages=True)
+    async def reset_warnings(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
         """Reset warnings for a user or all users"""
-        guild_id = ctx.guild.id
+        guild_id = interaction.guild_id
         
         if member:
             if member.id in self.user_warnings[guild_id]:
                 old_count = self.user_warnings[guild_id][member.id]
                 self.user_warnings[guild_id][member.id] = 0
                 self.user_violations[guild_id][member.id] = []
-                await ctx.send(f"✅ Reset {old_count} warnings for {member.mention}")
+                await interaction.response.send_message(f"✅ Reset {old_count} warnings for {member.mention}")
             else:
-                await ctx.send(f"{member.mention} has no warnings to reset.")
+                await interaction.response.send_message(f"{member.mention} has no warnings to reset.", ephemeral=True)
         else:
             total_reset = sum(self.user_warnings[guild_id].values())
             self.user_warnings[guild_id].clear()
             self.user_violations[guild_id].clear()
-            await ctx.send(f"✅ Reset all warnings ({total_reset} total warnings cleared)")
+            await interaction.response.send_message(f"✅ Reset all warnings ({total_reset} total warnings cleared)")
     
-    @automod.command(name="unmute")
-    async def unmute_user(self, ctx, member: discord.Member):
+    @automod.command(name="unmute", description="Manually unmute a user")
+    @app_commands.default_permissions(manage_messages=True)
+    async def unmute_user(self, interaction: discord.Interaction, member: discord.Member):
         """Manually unmute a user"""
-        guild_id = ctx.guild.id
+        guild_id = interaction.guild_id
         
         if member.id in self.muted_users[guild_id]:
-            self.muted_users[guild_id].remove(member.id)
-            await ctx.send(f"✅ {member.mention} has been unmuted.")
+            self.muted_users[guild_id].discard(member.id) # Use discard as remove raises KeyError if not present
+            await interaction.response.send_message(f"✅ {member.mention} has been unmuted.")
         else:
-            await ctx.send(f"{member.mention} is not currently muted by AutoMod.")
+            await interaction.response.send_message(f"{member.mention} is not currently muted by AutoMod.", ephemeral=True)
+
+    # Subcommand group for setting configuration values
+    @automod.group(name="set", description="Set AutoMod configuration values")
+    @app_commands.default_permissions(manage_messages=True)
+    async def set_config(self, interaction: discord.Interaction):
+        """Set AutoMod configuration values"""
+        await interaction.response.send_message("Please specify a setting to change. Use `/help automod set` for options.", ephemeral=True)
+
+    @set_config.command(name="spam_threshold", description="Set the spam message threshold")
+    @app_commands.default_permissions(manage_messages=True)
+    async def set_spam_threshold(self, interaction: discord.Interaction, value: int):
+        """Set the spam message threshold"""
+        if value <= 0:
+            await interaction.response.send_message("Spam threshold must be a positive number.", ephemeral=True)
+            return
+        config = self.get_guild_config(interaction.guild_id)
+        config["spam_threshold"] = value
+        self.save_configs()
+        await interaction.response.send_message(f"✅ Spam threshold set to `{value}`.")
+
+    @set_config.command(name="spam_time_window", description="Set the spam time window in seconds")
+    @app_commands.default_permissions(manage_messages=True)
+    async def set_spam_time_window(self, interaction: discord.Interaction, value: int):
+        """Set the spam time window in seconds"""
+        if value <= 0:
+            await interaction.response.send_message("Spam time window must be a positive number.", ephemeral=True)
+            return
+        config = self.get_guild_config(interaction.guild_id)
+        config["spam_time_window"] = value
+        self.save_configs()
+        await interaction.response.send_message(f"✅ Spam time window set to `{value}` seconds.")
+
+    @set_config.command(name="max_mentions", description="Set the maximum number of mentions allowed per message")
+    @app_commands.default_permissions(manage_messages=True)
+    async def set_max_mentions(self, interaction: discord.Interaction, value: int):
+        """Set the maximum number of mentions allowed per message"""
+        if value < 0:
+            await interaction.response.send_message("Max mentions cannot be negative.", ephemeral=True)
+            return
+        config = self.get_guild_config(interaction.guild_id)
+        config["max_mentions"] = value
+        self.save_configs()
+        await interaction.response.send_message(f"✅ Maximum mentions set to `{value}`.")
+
+    @set_config.command(name="max_caps_percentage", description="Set the maximum allowed capital letters percentage")
+    @app_commands.default_permissions(manage_messages=True)
+    async def set_max_caps_percentage(self, interaction: discord.Interaction, value: int):
+        """Set the maximum allowed capital letters percentage"""
+        if not (0 <= value <= 100):
+            await interaction.response.send_message("Max caps percentage must be between 0 and 100.", ephemeral=True)
+            return
+        config = self.get_guild_config(interaction.guild_id)
+        config["max_caps_percentage"] = value
+        self.save_configs()
+        await interaction.response.send_message(f"✅ Maximum caps percentage set to `{value}%`.")
+
+    @set_config.command(name="min_message_length_for_caps", description="Set min message length for caps check")
+    @app_commands.default_permissions(manage_messages=True)
+    async def set_min_message_length_for_caps(self, interaction: discord.Interaction, value: int):
+        """Set minimum message length for caps check"""
+        if value < 0:
+            await interaction.response.send_message("Minimum message length cannot be negative.", ephemeral=True)
+            return
+        config = self.get_guild_config(interaction.guild_id)
+        config["min_message_length_for_caps"] = value
+        self.save_configs()
+        await interaction.response.send_message(f"✅ Minimum message length for caps check set to `{value}`.")
+
+    @set_config.command(name="mute_duration", description="Set the temporary mute duration in seconds")
+    @app_commands.default_permissions(manage_messages=True)
+    async def set_mute_duration(self, interaction: discord.Interaction, value: int):
+        """Set the temporary mute duration in seconds"""
+        if value <= 0:
+            await interaction.response.send_message("Mute duration must be a positive number.", ephemeral=True)
+            return
+        config = self.get_guild_config(interaction.guild_id)
+        config["mute_duration"] = value
+        self.save_configs()
+        await interaction.response.send_message(f"✅ Mute duration set to `{value}` seconds.")
+
+    @set_config.command(name="log_channel", description="Set the channel for moderation logs")
+    @app_commands.default_permissions(manage_messages=True)
+    async def set_log_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        """Set the channel for moderation logs"""
+        config = self.get_guild_config(interaction.guild_id)
+        config["log_channel"] = channel.name
+        self.save_configs()
+        await interaction.response.send_message(f"✅ Log channel set to {channel.mention}.")
+
+    # Subcommand group for adding to lists (bad words, allowed domains, whitelisted roles/channels)
+    @automod.group(name="add", description="Add items to AutoMod lists")
+    @app_commands.default_permissions(manage_messages=True)
+    async def add_item(self, interaction: discord.Interaction):
+        """Add items to AutoMod lists"""
+        await interaction.response.send_message("Please specify what to add. Use `/help automod add` for options.", ephemeral=True)
+
+    @add_item.command(name="bad_word", description="Add a word to the bad words list")
+    @app_commands.default_permissions(manage_messages=True)
+    async def add_bad_word(self, interaction: discord.Interaction, word: str):
+        """Add a word to the bad words list"""
+        config = self.get_guild_config(interaction.guild_id)
+        if word.lower() not in [w.lower() for w in config["bad_words"]]:
+            config["bad_words"].append(word.lower())
+            self.save_configs()
+            await interaction.response.send_message(f"✅ Added `{word}` to bad words list.")
+        else:
+            await interaction.response.send_message(f"❌ `{word}` is already in the bad words list.", ephemeral=True)
+
+    @add_item.command(name="allowed_domain", description="Add a domain to the allowed links list")
+    @app_commands.default_permissions(manage_messages=True)
+    async def add_allowed_domain(self, interaction: discord.Interaction, domain: str):
+        """Add a domain to the allowed links list"""
+        config = self.get_guild_config(interaction.guild_id)
+        if domain.lower() not in [d.lower() for d in config["allowed_domains"]]:
+            config["allowed_domains"].append(domain.lower())
+            self.save_configs()
+            await interaction.response.send_message(f"✅ Added `{domain}` to allowed domains list.")
+        else:
+            await interaction.response.send_message(f"❌ `{domain}` is already in the allowed domains list.", ephemeral=True)
+
+    @add_item.command(name="whitelisted_role", description="Add a role to the whitelisted roles list")
+    @app_commands.default_permissions(manage_messages=True)
+    async def add_whitelisted_role(self, interaction: discord.Interaction, role: discord.Role):
+        """Add a role to the whitelisted roles list"""
+        config = self.get_guild_config(interaction.guild_id)
+        if role.name not in config["whitelisted_roles"]:
+            config["whitelisted_roles"].append(role.name)
+            self.save_configs()
+            await interaction.response.send_message(f"✅ Added role `{role.name}` to whitelisted roles.")
+        else:
+            await interaction.response.send_message(f"❌ Role `{role.name}` is already whitelisted.", ephemeral=True)
+
+    @add_item.command(name="whitelisted_channel", description="Add a channel to the whitelisted channels list")
+    @app_commands.default_permissions(manage_messages=True)
+    async def add_whitelisted_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        """Add a channel to the whitelisted channels list"""
+        config = self.get_guild_config(interaction.guild_id)
+        if channel.name not in config["whitelisted_channels"]:
+            config["whitelisted_channels"].append(channel.name)
+            self.save_configs()
+            await interaction.response.send_message(f"✅ Added channel {channel.mention} to whitelisted channels.")
+        else:
+            await interaction.response.send_message(f"❌ Channel {channel.mention} is already whitelisted.", ephemeral=True)
+
+    # Subcommand group for removing from lists
+    @automod.group(name="remove", description="Remove items from AutoMod lists")
+    @app_commands.default_permissions(manage_messages=True)
+    async def remove_item(self, interaction: discord.Interaction):
+        """Remove items from AutoMod lists"""
+        await interaction.response.send_message("Please specify what to remove. Use `/help automod remove` for options.", ephemeral=True)
+
+    @remove_item.command(name="bad_word", description="Remove a word from the bad words list")
+    @app_commands.default_permissions(manage_messages=True)
+    async def remove_bad_word(self, interaction: discord.Interaction, word: str):
+        """Remove a word from the bad words list"""
+        config = self.get_guild_config(interaction.guild_id)
+        if word.lower() in [w.lower() for w in config["bad_words"]]:
+            config["bad_words"].remove(word.lower())
+            self.save_configs()
+            await interaction.response.send_message(f"✅ Removed `{word}` from bad words list.")
+        else:
+            await interaction.response.send_message(f"❌ `{word}` is not in the bad words list.", ephemeral=True)
+
+    @remove_item.command(name="allowed_domain", description="Remove a domain from the allowed links list")
+    @app_commands.default_permissions(manage_messages=True)
+    async def remove_allowed_domain(self, interaction: discord.Interaction, domain: str):
+        """Remove a domain from the allowed links list"""
+        config = self.get_guild_config(interaction.guild_id)
+        if domain.lower() in [d.lower() for d in config["allowed_domains"]]:
+            config["allowed_domains"].remove(domain.lower())
+            self.save_configs()
+            await interaction.response.send_message(f"✅ Removed `{domain}` from allowed domains list.")
+        else:
+            await interaction.response.send_message(f"❌ `{domain}` is not in the allowed domains list.", ephemeral=True)
+
+    @remove_item.command(name="whitelisted_role", description="Remove a role from the whitelisted roles list")
+    @app_commands.default_permissions(manage_messages=True)
+    async def remove_whitelisted_role(self, interaction: discord.Interaction, role: discord.Role):
+        """Remove a role from the whitelisted roles list"""
+        config = self.get_guild_config(interaction.guild_id)
+        if role.name in config["whitelisted_roles"]:
+            config["whitelisted_roles"].remove(role.name)
+            self.save_configs()
+            await interaction.response.send_message(f"✅ Removed role `{role.name}` from whitelisted roles.")
+        else:
+            await interaction.response.send_message(f"❌ Role `{role.name}` is not in the whitelisted roles.", ephemeral=True)
+
+    @remove_item.command(name="whitelisted_channel", description="Remove a channel from the whitelisted channels list")
+    @app_commands.default_permissions(manage_messages=True)
+    async def remove_whitelisted_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        """Remove a channel from the whitelisted channels list"""
+        config = self.get_guild_config(interaction.guild_id)
+        if channel.name in config["whitelisted_channels"]:
+            config["whitelisted_channels"].remove(channel.name)
+            self.save_configs()
+            await interaction.response.send_message(f"✅ Removed channel {channel.mention} from whitelisted channels.")
+        else:
+            await interaction.response.send_message(f"❌ Channel {channel.mention} is not in the whitelisted channels.", ephemeral=True)
+
 
 async def setup(bot):
-    """Setup function to add the cog to the bot"""
+    """Setup function to add the cog to the bot and sync slash commands"""
     await bot.add_cog(AutoMod(bot))
+    # Sync global commands (or guild-specific for faster testing)
+    # For global commands, it can take up to an hour to propagate.
+    # For testing, you might want to use:
+    # await bot.tree.sync(guild=discord.Object(id=YOUR_GUILD_ID))
+    await bot.tree.sync() # Sync all commands globally
+
