@@ -9,7 +9,6 @@ class Status(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.message_count = self.load_count("message_count.txt")
-        self.guild_message_count = self.load_count("guild_message_count.txt")
         self.status_index = 0
         self.update_status.start()
 
@@ -22,32 +21,32 @@ class Status(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message):
-        if message.author.bot:
+        if message.author.bot or not message.guild:
+            return
+        if message.guild.id != GUILD_ID:
             return
 
         self.message_count += 1
         self.save_count("message_count.txt", self.message_count)
 
-        if message.guild and message.guild.id == GUILD_ID:
-            self.guild_message_count += 1
-            self.save_count("guild_message_count.txt", self.guild_message_count)
-
     @tasks.loop(seconds=20)
     async def update_status(self):
-        total_members = sum(g.member_count for g in self.bot.guilds)
-        total_tickets = 0
+        guild = self.bot.get_guild(GUILD_ID)
+        if not guild:
+            return
 
-        for guild in self.bot.guilds:
-            category = discord.utils.get(guild.categories, id=TICKET_CATEGORY_ID)
-            if category:
-                total_tickets += len([
-                    c for c in category.channels if isinstance(c, discord.TextChannel)
-                ])
+        total_members = guild.member_count
+
+        # Count tickets under the specified category in the specific guild
+        category = discord.utils.get(guild.categories, id=TICKET_CATEGORY_ID)
+        total_tickets = 0
+        if category:
+            total_tickets = len([c for c in category.channels if isinstance(c, discord.TextChannel)])
 
         statuses = [
             f"Tickets: {total_tickets}",
             f"Members: {total_members}",
-            f"Messages: {self.guild_message_count}",
+            f"Messages: {self.message_count}",
             "ztxhosting.site"
         ]
 
