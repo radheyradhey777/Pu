@@ -4,11 +4,13 @@ import os
 import asyncio
 from flask import Flask
 from threading import Thread
+from dotenv import load_dotenv  # Optional: for using a .env file
 
-# ⛔ WARNING: Do NOT share this token publicly. Regenerate it if already leaked.
-TOKEN = "MTM4MTMyODM2MzA1MzkxMjA3NA.Gbb0Kp.y96-QuBnYqIdMvWBz7_0VSAIGFcykYdS7_PFPs"  # <- Replace this with your actual token
+# Load environment variables
+load_dotenv()
+TOKEN = os.getenv("DISCORD_TOKEN")  # Use DISCORD_TOKEN from .env
 
-# Flask Web Server to keep bot alive
+# Flask Web Server to keep bot alive (for Replit or similar)
 app = Flask(__name__)
 
 @app.route('/')
@@ -19,8 +21,8 @@ def run_web():
     app.run(host='0.0.0.0', port=8080)
 
 def keep_alive():
-    t = Thread(target=run_web)
-    t.start()
+    thread = Thread(target=run_web)
+    thread.start()
 
 # Discord Bot Setup
 intents = discord.Intents.all()
@@ -29,7 +31,6 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 @bot.event
 async def on_ready():
     print(f"✅ Bot is ready. Logged in as {bot.user}")
-    await bot.tree.sync()
 
 async def load_cogs():
     if not os.path.exists("./cogs"):
@@ -43,14 +44,26 @@ async def load_cogs():
             except Exception as e:
                 print(f"❌ Failed to load cog {filename}: {e}")
 
+async def sync_commands():
+    try:
+        await bot.wait_until_ready()
+        await bot.tree.sync()
+        print("✅ Slash commands synced.")
+    except Exception as e:
+        print(f"❌ Slash command sync failed: {e}")
+
 async def main():
     try:
         keep_alive()
         await load_cogs()
+        bot.loop.create_task(sync_commands())  # Safer sync
         print("✅ Starting bot...")
         await bot.start(TOKEN)
     except Exception as e:
         print(f"❌ Bot start error: {e}")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    if TOKEN is None:
+        print("❌ DISCORD_TOKEN is not set in the environment.")
+    else:
+        asyncio.run(main())
