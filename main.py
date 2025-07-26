@@ -2,20 +2,18 @@ import discord
 from discord.ext import commands
 import os
 import asyncio
-from dotenv import load_dotenv
 from flask import Flask
 from threading import Thread
 
-# Load .env variables
-load_dotenv()
-TOKEN = os.getenv("DISCORD_TOKEN")
+# ⛔ WARNING: Do NOT share this token publicly. Regenerate it if already leaked.
+TOKEN = "MTM4MTMyODM2MzA1MzkxMjA3NA.Gbb0Kp.y96-QuBnYqIdMvWBz7_0VSAIGFcykYdS7_PFPs"  # <- Replace this with your actual token
 
-# Flask Keep-Alive Web Server
+# Flask Web Server to keep bot alive
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Ticket Bot is Online!"
+    return "✅ Ticket Bot is Online!"
 
 def run_web():
     app.run(host='0.0.0.0', port=8080)
