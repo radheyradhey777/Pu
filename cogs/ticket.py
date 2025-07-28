@@ -143,7 +143,7 @@ class TicketCog(commands.Cog):
         if channel:
             await channel.purge(limit=5)
             embed = discord.Embed(
-                title="<:ztx:1395412688128966717> ZTX Hosting | Support",
+                title="<:cc:1399375648476102667> Cloud Cash| Support",
                 description=(
                     "**Need support or want to buy something?**\n"
                     "Open a ticket by selecting a category below.\n\n"
