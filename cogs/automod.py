@@ -29,6 +29,7 @@ class AutoMod(commands.Cog):
     CAPS_TIMEOUT = 30
     REPEATED_CHAR_TIMEOUT = 45
     MASS_MENTION_TIMEOUT = 180
+    LINK_TIMEOUT = 90  # Timeout for unauthorized links
     
     # Content Limits
     MAX_CAPS_PERCENTAGE = 70  # Maximum percentage of caps allowed
@@ -44,6 +45,19 @@ class AutoMod(commands.Cog):
     
     # Immune roles
     IMMUNE_ROLE_NAMES = ["Admin", "Moderator", "Bot Admin", "VIP"]
+    
+    # Link filtering configuration
+    LINK_WHITELIST_DOMAINS = [
+        "youtube.com", "youtu.be", "imgur.com", "giphy.com", "tenor.com",
+        "github.com", "stackoverflow.com", "wikipedia.org", "reddit.com",
+        "twitter.com", "x.com", "instagram.com", "facebook.com", "tiktok.com"
+    ]
+    
+    # Suspicious/malicious domains (add known bad domains)
+    BLACKLISTED_DOMAINS = [
+        # Add more suspicious shorteners and known malicious domains
+        "scam-site.com", "phishing-example.com"
+    ]
     
     # Profanity filter (add more words as needed)
     PROFANITY_WORDS = {
@@ -65,12 +79,48 @@ class AutoMod(commands.Cog):
         self.violation_tracker = defaultdict(int)  # Track violations per user
         self.muted_users = set()  # Track temporarily muted users
         
+        # Link filtering settings per guild
+        self.guild_link_settings = defaultdict(lambda: {
+            "block_all_links": False,
+            "allow_whitelisted_only": True,
+            "block_shorteners": True,
+            "block_ip_links": True,
+            "block_file_uploads": False,
+            "custom_whitelist": set(),
+            "custom_blacklist": set()
+        })
+        
         # Pre-compile regex patterns for efficiency
         self.INVITE_REGEX = re.compile(
             r"(https?:\/\/)?(www\.)?(discord\.gg|discord\.com\/invite|discordapp\.com\/invite)\/[a-zA-Z0-9]+", 
             re.IGNORECASE
         )
-        self.URL_REGEX = re.compile(r"https?:\/\/[^\s/$.?#].[^\s]*", re.IGNORECASE)
+        
+        # Enhanced URL regex patterns
+        self.URL_REGEX = re.compile(
+            r"https?:\/\/(?:[-\w.])+(?:\:[0-9]+)?(?:\/(?:[\w\/_.])*(?:\?(?:[\w&=%.])*)?(?:\#(?:[\w.])*)?)?",
+            re.IGNORECASE
+        )
+        
+        # IP address regex (IPv4 and IPv6)
+        self.IP_REGEX = re.compile(
+            r"https?:\/\/(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
+            r"|https?:\/\/(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}",
+            re.IGNORECASE
+        )
+        
+        # File upload links
+        self.FILE_UPLOAD_REGEX = re.compile(
+            r"https?:\/\/(?:www\.)?(?:mediafire|mega|dropbox|drive\.google|onedrive|wetransfer|sendspace|zippyshare)\.(?:com|co\.nz|live\.com)\/[^\s]+",
+            re.IGNORECASE
+        )
+        
+        # URL shorteners
+        self.SHORTENER_REGEX = re.compile(
+            r"https?:\/\/(?:www\.)?(?:bit\.ly|tinyurl\.com|t\.co|goo\.gl|ow\.ly|short\.link|is\.gd|v\.gd|tiny\.cc|buff\.ly)\/[^\s]+",
+            re.IGNORECASE
+        )
+        
         self.REPEATED_CHAR_REGEX = re.compile(rf'(.)\1{{{self.MAX_REPEATED_CHARS},}}', re.IGNORECASE)
         
         # Compile profanity regex
@@ -82,6 +132,59 @@ class AutoMod(commands.Cog):
     def is_immune(self, member: discord.Member) -> bool:
         """Check if a member is immune to automod actions."""
         return any(role.name in self.IMMUNE_ROLE_NAMES for role in member.roles)
+
+    def extract_domain(self, url: str) -> str:
+        """Extract domain from URL."""
+        # Remove protocol
+        url = re.sub(r'^https?://', '', url)
+        # Remove www.
+        url = re.sub(r'^www\.', '', url)
+        # Get domain part
+        domain = url.split('/')[0].split('?')[0].split('#')[0]
+        return domain.lower()
+
+    def is_link_allowed(self, guild_id: int, url: str) -> tuple[bool, str]:
+        """Check if a link is allowed based on guild settings."""
+        settings = self.guild_link_settings[guild_id]
+        domain = self.extract_domain(url)
+        
+        # Check if all links are blocked
+        if settings["block_all_links"]:
+            return False, "All links are blocked in this server"
+        
+        # Check custom blacklist first
+        if domain in settings["custom_blacklist"]:
+            return False, f"Domain '{domain}' is blacklisted"
+        
+        # Check global blacklist
+        if domain in self.BLACKLISTED_DOMAINS:
+            return False, f"Domain '{domain}' is globally blacklisted"
+        
+        # Check for IP addresses
+        if settings["block_ip_links"] and self.IP_REGEX.match(url):
+            return False, "IP address links are not allowed"
+        
+        # Check for URL shorteners
+        if settings["block_shorteners"] and self.SHORTENER_REGEX.match(url):
+            return False, "URL shorteners are not allowed"
+        
+        # Check for file upload sites
+        if settings["block_file_uploads"] and self.FILE_UPLOAD_REGEX.match(url):
+            return False, "File upload links are not allowed"
+        
+        # Check custom whitelist
+        if domain in settings["custom_whitelist"]:
+            return True, "Domain is whitelisted"
+        
+        # Check global whitelist
+        if settings["allow_whitelisted_only"]:
+            if domain in self.LINK_WHITELIST_DOMAINS:
+                return True, "Domain is globally whitelisted"
+            else:
+                return False, f"Only whitelisted domains are allowed. '{domain}' is not whitelisted"
+        
+        # If not whitelist-only mode, allow by default
+        return True, "Link is allowed"
 
     async def log_violation(self, member: discord.Member, violation_type: str, reason: str):
         """Log violations and track repeat offenders."""
@@ -164,9 +267,9 @@ class AutoMod(commands.Cog):
         if await self.handle_invite_links(message):
             violations.append("invite_links")
         
-        # 12. General external links (optional)
-        # if await self.handle_general_links(message):
-        #     violations.append("external_links")
+        # 12. General external links (ENHANCED)
+        if await self.handle_general_links(message):
+            violations.append("external_links")
 
     async def check_rate_limit(self, message: discord.Message) -> bool:
         """Check if user is sending messages too quickly."""
@@ -372,21 +475,144 @@ class AutoMod(commands.Cog):
         return False
 
     async def handle_general_links(self, message: discord.Message) -> bool:
-        """Handle general external links (optional)."""
-        if not self.INVITE_REGEX.search(message.content) and self.URL_REGEX.search(message.content):
-            try:
-                await message.delete()
-                await message.channel.send(
-                    f"🔗 {message.author.mention}, external links are not allowed here.",
-                    delete_after=10
-                )
-                await self.log_violation(message.author, "External Link", "Sent external link")
-                return True
-            except (discord.Forbidden, discord.NotFound):
-                pass
+        """Enhanced general external link handling with whitelist/blacklist support."""
+        # Skip if it's a Discord invite (handled separately)
+        if self.INVITE_REGEX.search(message.content):
+            return False
+        
+        # Find all URLs in the message
+        urls = self.URL_REGEX.findall(message.content)
+        if not urls:
+            return False
+        
+        for url in urls:
+            allowed, reason = self.is_link_allowed(message.guild.id, url)
+            if not allowed:
+                try:
+                    await message.delete()
+                    timeout_duration = timedelta(seconds=self.LINK_TIMEOUT)
+                    await message.author.timeout(timeout_duration, reason=f"Unauthorized link: {reason}")
+                    await message.channel.send(
+                        f"🔗 {message.author.mention}, your link was blocked: {reason}",
+                        delete_after=10
+                    )
+                    await self.log_violation(message.author, "Unauthorized Link", f"{url} - {reason}")
+                    return True
+                except (discord.Forbidden, discord.NotFound):
+                    pass
         return False
 
-    # --- Moderation Commands ---
+    # --- Link Management Commands ---
+    
+    @commands.group(name="linkfilter", aliases=["lf"])
+    @commands.has_permissions(manage_messages=True)
+    async def link_filter(self, ctx):
+        """Link filtering management commands."""
+        if ctx.invoked_subcommand is None:
+            settings = self.guild_link_settings[ctx.guild.id]
+            embed = discord.Embed(title="🔗 Link Filter Settings", color=discord.Color.blue())
+            embed.add_field(name="Block All Links", value=settings["block_all_links"], inline=True)
+            embed.add_field(name="Whitelist Only", value=settings["allow_whitelisted_only"], inline=True)
+            embed.add_field(name="Block Shorteners", value=settings["block_shorteners"], inline=True)
+            embed.add_field(name="Block IP Links", value=settings["block_ip_links"], inline=True)
+            embed.add_field(name="Block File Uploads", value=settings["block_file_uploads"], inline=True)
+            embed.add_field(name="Custom Whitelist", value=len(settings["custom_whitelist"]), inline=True)
+            embed.add_field(name="Custom Blacklist", value=len(settings["custom_blacklist"]), inline=True)
+            await ctx.send(embed=embed)
+
+    @link_filter.command(name="toggle")
+    async def lf_toggle(self, ctx, setting: str):
+        """Toggle link filter settings. Available: block_all, whitelist_only, shorteners, ip_links, file_uploads"""
+        settings = self.guild_link_settings[ctx.guild.id]
+        setting_map = {
+            "block_all": "block_all_links",
+            "whitelist_only": "allow_whitelisted_only", 
+            "shorteners": "block_shorteners",
+            "ip_links": "block_ip_links",
+            "file_uploads": "block_file_uploads"
+        }
+        
+        if setting not in setting_map:
+            await ctx.send(f"❌ Invalid setting. Available: {', '.join(setting_map.keys())}")
+            return
+        
+        key = setting_map[setting]
+        settings[key] = not settings[key]
+        status = "enabled" if settings[key] else "disabled"
+        await ctx.send(f"✅ {setting.replace('_', ' ').title()} has been **{status}**")
+
+    @link_filter.command(name="whitelist")
+    async def lf_whitelist(self, ctx, action: str, domain: str = None):
+        """Manage custom whitelist. Actions: add, remove, list"""
+        settings = self.guild_link_settings[ctx.guild.id]
+        
+        if action == "list":
+            if not settings["custom_whitelist"]:
+                await ctx.send("📝 Custom whitelist is empty.")
+            else:
+                domains = "\n".join(settings["custom_whitelist"])
+                embed = discord.Embed(title="📝 Custom Whitelist", description=domains, color=discord.Color.green())
+                await ctx.send(embed=embed)
+        
+        elif action == "add" and domain:
+            domain = domain.lower().replace("http://", "").replace("https://", "").replace("www.", "")
+            settings["custom_whitelist"].add(domain)
+            await ctx.send(f"✅ Added `{domain}` to whitelist")
+        
+        elif action == "remove" and domain:
+            domain = domain.lower().replace("http://", "").replace("https://", "").replace("www.", "")
+            if domain in settings["custom_whitelist"]:
+                settings["custom_whitelist"].remove(domain)
+                await ctx.send(f"✅ Removed `{domain}` from whitelist")
+            else:
+                await ctx.send(f"❌ `{domain}` not found in whitelist")
+        
+        else:
+            await ctx.send("Usage: `linkfilter whitelist <add/remove/list> [domain]`")
+
+    @link_filter.command(name="blacklist")
+    async def lf_blacklist(self, ctx, action: str, domain: str = None):
+        """Manage custom blacklist. Actions: add, remove, list"""
+        settings = self.guild_link_settings[ctx.guild.id]
+        
+        if action == "list":
+            if not settings["custom_blacklist"]:
+                await ctx.send("📝 Custom blacklist is empty.")
+            else:
+                domains = "\n".join(settings["custom_blacklist"])
+                embed = discord.Embed(title="📝 Custom Blacklist", description=domains, color=discord.Color.red())
+                await ctx.send(embed=embed)
+        
+        elif action == "add" and domain:
+            domain = domain.lower().replace("http://", "").replace("https://", "").replace("www.", "")
+            settings["custom_blacklist"].add(domain)
+            await ctx.send(f"✅ Added `{domain}` to blacklist")
+        
+        elif action == "remove" and domain:
+            domain = domain.lower().replace("http://", "").replace("https://", "").replace("www.", "")
+            if domain in settings["custom_blacklist"]:
+                settings["custom_blacklist"].remove(domain)
+                await ctx.send(f"✅ Removed `{domain}` from blacklist")
+            else:
+                await ctx.send(f"❌ `{domain}` not found in blacklist")
+        
+        else:
+            await ctx.send("Usage: `linkfilter blacklist <add/remove/list> [domain]`")
+
+    @link_filter.command(name="test")
+    async def lf_test(self, ctx, url: str):
+        """Test if a URL would be allowed or blocked."""
+        allowed, reason = self.is_link_allowed(ctx.guild.id, url)
+        color = discord.Color.green() if allowed else discord.Color.red()
+        status = "✅ ALLOWED" if allowed else "❌ BLOCKED"
+        
+        embed = discord.Embed(title=f"🔍 Link Test: {status}", color=color)
+        embed.add_field(name="URL", value=f"`{url}`", inline=False)
+        embed.add_field(name="Domain", value=f"`{self.extract_domain(url)}`", inline=True)
+        embed.add_field(name="Reason", value=reason, inline=False)
+        await ctx.send(embed=embed)
+
+    # --- Original Moderation Commands ---
     
     @commands.command(name="automod_stats")
     @commands.has_permissions(manage_messages=True)
@@ -401,66 +627,25 @@ class AutoMod(commands.Cog):
         total_violations = sum(guild_violations.values())
         top_offenders = sorted(guild_violations.items(), key=lambda x: x[1], reverse=True)[:5]
         
-        embed = discord.Embed(title="AutoMod Statistics", color=discord.Color.red())
+        embed = discord.Embed(title="📊 AutoMod Statistics", color=discord.Color.orange())
         embed.add_field(name="Total Violations", value=str(total_violations), inline=True)
-        embed.add_field(name="Unique Users", value=str(len(guild_violations)), inline=True)
+        embed.add_field(name="Unique Offenders", value=str(len(guild_violations)), inline=True)
         
         if top_offenders:
             offenders_text = ""
             for (guild_id, user_id), violations in top_offenders:
-                user = self.bot.get_user(user_id)
-                user_name = user.name if user else f"Unknown User ({user_id})"
-                offenders_text += f"{user_name}: {violations} violations\n"
+                try:
+                    user = await self.bot.fetch_user(user_id)
+                    offenders_text += f"{user.mention}: **{violations}** violations\n"
+                except discord.NotFound:
+                    offenders_text += f"User ID `{user_id}`: **{violations}** violations (user not found)\n"
             
-            embed.add_field(name="Top Offenders", value=offenders_text, inline=False)
+            embed.add_field(name="🏆 Top Offenders", value=offenders_text, inline=False)
         
         await ctx.send(embed=embed)
 
-    @commands.command(name="reset_violations")
-    @commands.has_permissions(administrator=True)
-    async def reset_violations(self, ctx, user: discord.Member = None):
-        """Reset violation count for a user or all users."""
-        if user:
-            user_key = (ctx.guild.id, user.id)
-            if user_key in self.violation_tracker:
-                del self.violation_tracker[user_key]
-                await ctx.send(f"✅ Reset violations for {user.mention}")
-            else:
-                await ctx.send(f"No violations found for {user.mention}")
-        else:
-            # Reset all violations for this guild
-            guild_keys = [k for k in self.violation_tracker.keys() if k[0] == ctx.guild.id]
-            for key in guild_keys:
-                del self.violation_tracker[key]
-            await ctx.send(f"✅ Reset all violations for this server ({len(guild_keys)} users)")
-
-    @commands.command(name="temp_mute")
-    @commands.has_permissions(manage_messages=True)
-    async def temp_mute(self, ctx, user: discord.Member, duration: int = 300):
-        """Temporarily mute a user (their messages will be auto-deleted)."""
-        self.muted_users.add(user.id)
-        await ctx.send(f"🔇 {user.mention} has been temporarily muted for {duration} seconds.")
-        
-        # Remove mute after duration
-        await asyncio.sleep(duration)
-        self.muted_users.discard(user.id)
-        
-        try:
-            await ctx.send(f"🔊 {user.mention} has been unmuted.")
-        except:
-            pass  # Channel might be deleted
-
-    @commands.command(name="unmute")
-    @commands.has_permissions(manage_messages=True)
-    async def unmute(self, ctx, user: discord.Member):
-        """Unmute a temporarily muted user."""
-        if user.id in self.muted_users:
-            self.muted_users.remove(user.id)
-            await ctx.send(f"🔊 {user.mention} has been unmuted.")
-        else:
-            await ctx.send(f"{user.mention} is not currently muted.")
-
 
 async def setup(bot: commands.Bot):
-    """Standard setup function to load the cog."""
+    """Loads the cog into the bot."""
     await bot.add_cog(AutoMod(bot))
+    log.info("AutoMod cog has been loaded successfully.")
