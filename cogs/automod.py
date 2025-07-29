@@ -10,7 +10,6 @@ class AutoMod(commands.Cog):
         self.spam_tracker = defaultdict(lambda: deque(maxlen=4))
         self.SPAM_TIME_WINDOW = 5  # seconds
         self.TIMEOUT_DURATION = 60  # seconds
-
         self.invite_regex = r"(https?:\/\/)?(www\.)?(discord\.gg|discord\.com\/invite)\/\w+"
         self.url_regex = r"https?:\/\/[^\s]+"
 
@@ -22,30 +21,30 @@ class AutoMod(commands.Cog):
         user_id = message.author.id
         now = time.time()
 
-        # Track message timestamps
+        # Track timestamps for spam detection
         self.spam_tracker[user_id].append(now)
 
-        # Spam Detection
+        # 🛑 Spam Detection
         if len(self.spam_tracker[user_id]) == 4 and now - self.spam_tracker[user_id][0] <= self.SPAM_TIME_WINDOW:
-            await message.channel.send(f"🚨 {message.author.mention}, slow down or you'll get a timeout like a bot in T-side rush B.")
             try:
+                await message.channel.send(f"🛑 {message.author.mention}, spamming detected. Timeout for {self.TIMEOUT_DURATION} seconds.")
                 await message.author.timeout(discord.utils.utcnow() + discord.timedelta(seconds=self.TIMEOUT_DURATION), reason="Spam")
             except Exception as e:
-                print(f"Spam Timeout Failed: {e}")
+                print(f"[Spam Timeout Error]: {e}")
 
-        # Anti-Invite
-        if re.search(self.invite_regex, message.content):
+        # ❌ Discord Invite Links
+        if re.search(self.invite_regex, message.content, re.IGNORECASE):
             await message.delete()
-            await message.channel.send(f"🛑 {message.author.mention}, Discord invites are not allowed!")
             try:
-                await message.author.timeout(discord.utils.utcnow() + discord.timedelta(seconds=self.TIMEOUT_DURATION), reason="Discord Invite")
+                await message.channel.send(f"❌ {message.author.mention}, Discord invites are not allowed.")
+                await message.author.timeout(discord.utils.utcnow() + discord.timedelta(seconds=self.TIMEOUT_DURATION), reason="Invite Link")
             except:
                 pass
 
-        # Anti-Link
-        elif re.search(self.url_regex, message.content):
+        # 🔗 External Links
+        elif re.search(self.url_regex, message.content, re.IGNORECASE):
             await message.delete()
-            await message.channel.send(f"🔗 {message.author.mention}, no links allowed in this server.")
+            await message.channel.send(f"🔗 {message.author.mention}, external links are not allowed.")
 
-def setup(bot):
-    bot.add_cog(AutoMod(bot))
+async def setup(bot):
+    await bot.add_cog(AutoMod(bot))
