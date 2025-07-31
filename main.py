@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 
-# Web server to keep bot alive
+# Flask server to keep bot alive
 app = Flask(__name__)
 
 @app.route('/')
@@ -24,14 +24,13 @@ def keep_alive():
     thread = Thread(target=run_web)
     thread.start()
 
-# Custom Bot class
+# Custom Bot class with slash command syncing and cog loading
 class MyBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.all()
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
-        # Load cogs from /cogs folder
         if not os.path.exists("./cogs"):
             print("❌ 'cogs' directory not found.")
         else:
@@ -42,8 +41,6 @@ class MyBot(commands.Bot):
                         print(f"✅ Loaded cog: {filename}")
                     except Exception as e:
                         print(f"❌ Failed to load cog {filename}: {e}")
-        
-        # Sync slash commands
         try:
             await self.tree.sync()
             print("✅ Slash commands synced.")
@@ -57,17 +54,18 @@ bot = MyBot()
 async def on_ready():
     print(f"✅ Bot is ready. Logged in as {bot.user} (ID: {bot.user.id})")
 
-# Run the bot
+# Main bot runner
 async def main():
     try:
-        keep_alive()
         print("✅ Starting bot...")
         await bot.start(TOKEN)
     except Exception as e:
         print(f"❌ Bot start error: {e}")
 
+# Start keep-alive server and run bot
 if __name__ == "__main__":
-    if TOKEN is None:
-        print("❌ DISCORD_TOKEN is not set in the .env file.")
+    if not TOKEN:
+        print("❌ DISCORD_TOKEN is not set in environment!")
     else:
-        asyncio.run(main())
+        keep_alive()          # 🔄 Start Flask server before asyncio
+        asyncio.run(main())   # 🚀 Run the bot
