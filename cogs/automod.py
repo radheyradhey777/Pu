@@ -3,12 +3,12 @@ from discord.ext import commands
 import re
 
 class AutoMod(commands.Cog):
-    # Corrected the constructor name from 'init' to '__init__'
     def __init__(self, bot):
         self.bot = bot
+        # The set of bad words is created once on startup for efficiency
         self.bad_words = self._get_bad_words_list()
 
-        # Regular expressions to detect Discord invites and general URLs
+        # Regex patterns are compiled once for efficiency
         self.invite_regex = re.compile(r"(?:https?://)?(?:www\.)?(?:discord\.gg|discord\.com/invite)/\S+")
         self.url_regex = re.compile(r"https?://\S+|www\.\S+")
 
@@ -245,52 +245,50 @@ class AutoMod(commands.Cog):
             "pussypounder", "fuckbutt", "call girls", "motherfuckers", "lavdi", "daterape", "buttfuck", 
             "lavde", "dildos"
         ]
-        # Return a set of lowercase words for efficient 'in' checking
+        # Return a set of lowercase words for efficient, case-insensitive checks
         return set(word.lower() for word in word_list)
+
+    async def _handle_violation(self, message, reason):
+        """A helper function to delete a message and send a warning."""
+        try:
+            await message.delete()
+            await message.channel.send(f"{message.author.mention}, {reason}", delete_after=5)
+        except discord.Forbidden:
+            print(f"Could not delete message in #{message.channel.name}. Missing 'Manage Messages' Permission.")
+        except discord.NotFound:
+            pass
 
     @commands.Cog.listener()
     async def on_message(self, message):
-        # Ignore messages sent by bots, including ourself
+        # 1. Ignore messages sent by bots
         if message.author.bot:
             return
 
-        # Convert message content to lowercase for case-insensitive matching
+        # 2. NEW: Ignore users with "Manage Server" permission
+        # First, ensure the message is in a server (not a DM)
+        if isinstance(message.author, discord.Member):
+            # Check for the specific permission
+            if message.author.guild_permissions.manage_guild:
+                return # Stop processing if the user is a moderator
+
         content = message.content.lower()
 
-        # 1. Check for bad words
-        if any(bad_word in content for bad_word in self.bad_words):
-            try:
-                await message.delete()
-                await message.channel.send(f"{message.author.mention}, watch your language! 🤫", delete_after=5)
-            except discord.Forbidden:
-                print(f"Could not delete message. Missing Permissions in #{message.channel.name}.")
-            except discord.NotFound:
-                pass # Message was already deleted
-            return # Stop processing after finding a violation
-
-        # 2. Check for Discord invites
-        if self.invite_regex.search(content):
-            try:
-                await message.delete()
-                await message.channel.send(f"{message.author.mention}, Discord invites are not allowed! 🚫", delete_after=5)
-            except discord.Forbidden:
-                print(f"Could not delete message. Missing Permissions in #{message.channel.name}.")
-            except discord.NotFound:
-                pass
+        # 3. Check for bad words (Corrected Logic)
+        message_words = set(re.split(r'[ \n,.!?]', content))
+        if not self.bad_words.isdisjoint(message_words):
+            await self._handle_violation(message, "watch your language! 🤫")
             return
 
-        # 3. Check for any other links/URLs
+        # 4. Check for Discord invites
+        if self.invite_regex.search(content):
+            await self._handle_violation(message, "Discord invites are not allowed! 🚫")
+            return
+
+        # 5. Check for any other links/URLs
         if self.url_regex.search(content):
-            try:
-                await message.delete()
-                await message.channel.send(f"{message.author.mention}, posting links is not allowed! 🔗", delete_after=5)
-            except discord.Forbidden:
-                print(f"Could not delete message. Missing Permissions in #{message.channel.name}.")
-            except discord.NotFound:
-                pass
+            await self._handle_violation(message, "posting links is not allowed! 🔗")
             return
 
 # Standard setup function to load the cog
 async def setup(bot):
     await bot.add_cog(AutoMod(bot))
-
