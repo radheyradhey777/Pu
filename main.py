@@ -12,11 +12,14 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 
 # Web server to keep bot alive
 app = Flask(__name__)
+
 @app.route('/')
 def home():
     return "✅ Ticket Bot is Online!"
+
 def run_web():
     app.run(host='0.0.0.0', port=8080)
+
 def keep_alive():
     thread = Thread(target=run_web)
     thread.start()
@@ -28,7 +31,7 @@ class MyBot(commands.Bot):
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
-        # Load cogs
+        # Load cogs from /cogs folder
         if not os.path.exists("./cogs"):
             print("❌ 'cogs' directory not found.")
         else:
@@ -40,7 +43,7 @@ class MyBot(commands.Bot):
                     except Exception as e:
                         print(f"❌ Failed to load cog {filename}: {e}")
         
-        # Sync slash commands globally (you can also sync per guild)
+        # Sync slash commands
         try:
             await self.tree.sync()
             print("✅ Slash commands synced.")
@@ -52,9 +55,9 @@ bot = MyBot()
 
 @bot.event
 async def on_ready():
-    print(f"✅ Bot is ready. Logged in as {bot.user}")
+    print(f"✅ Bot is ready. Logged in as {bot.user} (ID: {bot.user.id})")
 
-# Run everything
+# Run the bot
 async def main():
     try:
         keep_alive()
@@ -65,6 +68,6 @@ async def main():
 
 if __name__ == "__main__":
     if TOKEN is None:
-        print("❌ DISCORD_TOKEN is not set in the environment.")
+        print("❌ DISCORD_TOKEN is not set in the .env file.")
     else:
         asyncio.run(main())
