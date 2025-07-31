@@ -243,7 +243,18 @@ class AutoMod(commands.Cog):
             "weed", "camel toes", "chuttiya", "teri jaat ka", "foreskin", "douche", "jack-off", 
             "escorts services", "choad", "cuntslut", "clitorus", "sust lund ki padaish", "pussylicking", 
             "pussypounder", "fuckbutt", "call girls", "motherfuckers", "lavdi", "daterape", "buttfuck", 
-            "lavde", "dildos"
+            "lavde", "dildos",
+            # New words added below
+            "badir", "badirchand", "bakland", "bhandwa", "bhadwa", "chinaal", "chutiya", "ghasti", "ghassad", 
+            "harami", "hijda", "hijra", "tatti", "chod", "_land", "_lode", "takke", "chakka", "faggot", "tatte", 
+            "raand", "randhwa", "jigolo", "randi", "land", "_chut", "_bund", "gaandu", "gandi", "boobley", "chuchi", 
+            "chuuche", "chuchiyan", "chodu", "lavda", "lawda", "loda", "lund", "muthi", "mutthal", "baable", "_bur", 
+            "chodna", "chudna", "chud", "buuble", "bhadwe", "bhadwon", "bhadwi", "bhadwapanti", "chodela", 
+            "marana", "marani", "marane", "gandphatu", "gandphati", "gandphata", "gandphaton", "gaandmasti", 
+            "jhaant", "gandmarna", "gandmaru", "gandmarana", "gandmari", "randibazar", "chodo", "chodi", "chodne", 
+            "chodva", "chudo", "chudi", "chudne", "chudva", "chodai", "chuda", "chudai", "chudvana", "haramia", 
+            "haramzada", "haramzadi", "haramkhor", "kamina", "kamini", "bhosdi", "bhosdike", "bhandi", "_rand", 
+            "randwa", "randibazaar", "hijade", "gandu", "lundwa", "chutmar", "chutiyapa"
         ]
         # Return a set of lowercase words for efficient, case-insensitive checks
         return set(word.lower() for word in word_list)
