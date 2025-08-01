@@ -47,7 +47,7 @@ class Status(commands.Cog):
             f"Tickets: {total_tickets}",
             f"Members: {total_members}",
             f"Messages: {self.message_count}",
-            "CloudCrash"
+            "CoRamTix"
         ]
 
         current = statuses[self.status_index % len(statuses)]
