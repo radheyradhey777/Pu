@@ -5,7 +5,7 @@ import requests
 from io import BytesIO
 
 # set your role id & channel id here
-WELCOME_CHANNEL_ID = 123456789012345678
+WELCOME_CHANNEL_ID = 1398305234442256394
 AUTO_ROLE_ID = 987654321098765432
 
 
