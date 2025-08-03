@@ -3,32 +3,44 @@ from discord.ext import commands
 import re
 
 class AutoMod(commands.Cog):
+    """
+    A cog for automatic moderation of a Discord server.
+    
+    Features:
+    - Filters a comprehensive list of bad words.
+    - Blocks Discord invite links and other URLs.
+    - Ignores messages from bots and users with 'Manage Server' permissions.
+    """
     def __init__(self, bot):
         self.bot = bot
-        # The set of bad words is created once on startup for efficiency
+        # The set of bad words is created once on startup for efficiency.
         self.bad_words = self._get_bad_words_list()
 
-        # Regex patterns are compiled once for efficiency
+        # Regex patterns are compiled once for efficiency.
+        # This single regex now correctly handles all specified Discord-related links.
         self.invite_regex = re.compile(
-    r"(?i)"  # Case-insensitive flag
-    r"(?:https?://)?"  # Optional http:// or https://
-    r"(?:www.)?"  # Optional www.
-    r"(?:"
-        r"discord.gg/(S+)|"  # Invite codes (e.g., discord.gg/perpleXity)
-        r"discord.com/invite/(S+)|"  # Alternative invite codes
-        r"discord.com/channels/(d+/d+/d+)|"  # Message links
-        r"discord.gift/(S+)|"  # Gift links
-        r"discord.new/(S+)|"  # Template links
-        r"discord.com/template/(S+)|" # Alternative template links
-        r"cdn.discordapp.com/S+|"  # CDN attachments
-        r"media.discordapp.net/S+|" # CDN media
-        r"discord.com/api/oauth2/authorize?S+" self.url_regex = re.compile(r"https?://\S+|www\.\S+")
+            r"(?i)"  # Case-insensitive flag
+            r"(?:https?://)?"  # Optional http:// or https://
+            r"(?:www\.)?"  # Optional www.
+            r"(?:"
+            r"discord(?:app)?\.com/(?:invite|channels|api/oauth2/authorize|template)/[^\s/]+"
+            r"|discord\.gg/[^\s/]+"
+            r"|discord\.gift/[^\s/]+"
+            r"|discord\.new/[^\s/]+"
+            r"|cdn\.discordapp\.com/[^\s/]+"
+            r"|media\.discordapp\.net/[^\s/]+"
+            r")"
+        )
+        
+        # This regex handles all other general URLs.
+        self.url_regex = re.compile(r"https?://\S+|www\.\S+")
 
     def _get_bad_words_list(self):
         """
         Returns a hardcoded set of all the bad words.
         This replaces the need to fetch them from an external URL.
         """
+        # The word list provided by the user is maintained as is.
         word_list = [
             "spooge", "homodumbshit", "betichod", "lauda", "whack off", "teri maa ka bhosra", "drunk", "virgin", 
             "cockmonkey", "b1tch", "horsetoe", "twink", "shemale", "womanizer", "tea bagging", "assfukka", "piss-off", 
@@ -268,50 +280,63 @@ class AutoMod(commands.Cog):
             "haramzada", "haramzadi", "haramkhor", "kamina", "kamini", "bhosdi", "bhosdike", "bhandi", "_rand", 
             "randwa", "randibazaar", "hijade", "gandu", "lundwa", "chutmar", "chutiyapa"
         ]
-        # Return a set of lowercase words for efficient, case-insensitive checks
+        # Return a set of lowercase words for efficient, case-insensitive checks.
         return set(word.lower() for word in word_list)
 
     async def _handle_violation(self, message, reason):
         """A helper function to delete a message and send a warning."""
         try:
             await message.delete()
-            await message.channel.send(f"{message.author.mention}, {reason}", delete_after=5)
+            # The warning message is sent to the channel where the violation occurred.
+            await message.channel.send(f"{message.author.mention}, {reason}", delete_after=10)
         except discord.Forbidden:
+            # This error is printed to your console if the bot lacks permissions.
             print(f"Could not delete message in #{message.channel.name}. Missing 'Manage Messages' Permission.")
         except discord.NotFound:
+            # This handles cases where the message was already deleted.
             pass
+        except Exception as e:
+            # Catch any other potential exceptions during handling.
+            print(f"An error occurred in _handle_violation: {e}")
 
     @commands.Cog.listener()
     async def on_message(self, message):
-        # 1. Ignore messages sent by bots
+        """This function is called for every message sent in the server."""
+        # 1. Ignore messages sent by bots to prevent loops.
         if message.author.bot:
             return
 
-        # 2. NEW: Ignore users with "Manage Server" permission
-        # First, ensure the message is in a server (not a DM)
+        # 2. Ignore users with "Manage Server" permission (i.e., moderators/admins).
+        # First, ensure the message is in a server (not a DM).
         if isinstance(message.author, discord.Member):
-            # Check for the specific permission
             if message.author.guild_permissions.manage_guild:
-                return # Stop processing if the user is a moderator
+                return
 
+        # Get the message content in lowercase for case-insensitive matching.
         content = message.content.lower()
 
-        # 3. Check for bad words (Corrected Logic)
-        message_words = set(re.split(r'[ \n,.!?]', content))
-        if not self.bad_words.isdisjoint(message_words):
+        # 3. Check for bad words (Optimized Logic).
+        # We split the message into words and check if any word is in our bad_words set.
+        # This is more efficient than creating a new set for every message.
+        if any(word in self.bad_words for word in re.split(r'[\s,.!?]+', content)):
             await self._handle_violation(message, "watch your language! 🤫")
             return
 
-        # 4. Check for Discord invites
+        # 4. Check for Discord invites using the specific invite regex.
         if self.invite_regex.search(content):
             await self._handle_violation(message, "Discord invites are not allowed! 🚫")
             return
 
-        # 5. Check for any other links/URLs
+        # 5. Check for any other links/URLs.
+        # This check is now separate from the Discord invite check.
         if self.url_regex.search(content):
-            await self._handle_violation(message, "posting links is not allowed! 🔗")
-            return
+            # To avoid flagging Discord CDN/media links twice, we double-check
+            # that it wasn't already caught by the invite_regex.
+            if not self.invite_regex.search(content):
+                 await self._handle_violation(message, "posting links is not allowed! 🔗")
+                 return
 
-# Standard setup function to load the cog
+# Standard setup function to load the cog into the bot.
 async def setup(bot):
     await bot.add_cog(AutoMod(bot))
+
