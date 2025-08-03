@@ -19,17 +19,8 @@ class AutoMod(commands.Cog):
         # Regex patterns are compiled once for efficiency.
         # This single regex now correctly handles all specified Discord-related links.
         self.invite_regex = re.compile(
-            r"(?i)"  # Case-insensitive flag
-            r"(?:https?://)?"  # Optional http:// or https://
-            r"(?:www\.)?"  # Optional www.
-            r"(?:"
-            r"discord(?:app)?\.com/(?:invite|channels|api/oauth2/authorize|template)/[^\s/]+"
-            r"|discord\.gg/[^\s/]+"
-            r"|discord\.gift/[^\s/]+"
-            r"|discord\.new/[^\s/]+"
-            r"|cdn\.discordapp\.com/[^\s/]+"
-            r"|media\.discordapp\.net/[^\s/]+"
-            r")"
+    r"(?i)(?:https?://)?(?:[\w\-]+\.)*(?:discord(?:app)?\.com|discord\.gg|discord\.gift|discord\.new)(?:\s*\.\s*|/)(?:invite|channels|api(?:/oauth2)?/authorize|template|gift)?/?[A-Za-z0-9\-_/?=&]+"
+)"
         )
         
         # This regex handles all other general URLs.
