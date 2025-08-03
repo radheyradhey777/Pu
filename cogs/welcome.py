@@ -66,31 +66,24 @@ class Welcome(commands.Cog):
         settings = load_settings(member.guild.id)
         if not settings:
             return
-
         guild = member.guild
-
-        # Auto-role
         role = guild.get_role(settings["role_id"])
         if role:
             try:
                 await member.add_roles(role, reason="Auto welcome role")
             except Exception as e:
                 print("Failed to give role:", e)
-
-        # Channel
         channel = guild.get_channel(settings["channel_id"])
         if channel is None:
             return
 
         banner = self.generate_banner(member, settings["background"])
-
         embed = discord.Embed(
             description=settings["message"]
                 .replace("{member}", member.mention)
                 .replace("{count}", str(guild.member_count)),
             color=discord.Color.green()
         )
-
         file = discord.File(banner, filename="welcome.png")
         embed.set_image(url="attachment://welcome.png")
         await channel.send(file=file, embed=embed)
