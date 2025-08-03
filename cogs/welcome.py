@@ -1,4 +1,4 @@
-import discord, json, requests, os
+import discord, json, os, requests
 from discord.ext import commands
 from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
@@ -26,11 +26,22 @@ def save_settings(guild_id, data):
 class Welcome(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.invites = {}
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        for guild in self.bot.guilds:
+            self.invites[guild.id] = await guild.invites()
 
     @commands.has_permissions(administrator=True)
     @commands.hybrid_command(name="welcome_setup")
     async def welcome_setup(self, ctx, channel: discord.TextChannel, role: discord.Role,
                             background_url: str, *, message: str):
+        """
+        Slash Usage:
+        /welcome_setup channel:<#> role:@ role background_url:<http> message:<text>
+        Use {member} {count} {inviter} {invites}
+        """
         save_settings(ctx.guild.id, {
             "channel_id": channel.id,
             "role_id": role.id,
@@ -39,22 +50,21 @@ class Welcome(commands.Cog):
         })
         await ctx.reply("✅ Welcome system configured!")
 
-    def generate_banner(self, member, bg_url: str):
-        bg_data = requests.get(bg_url).content
-        bg = Image.open(BytesIO(bg_data)).convert("RGBA")
+    def make_banner(self, member, background):
+        bg_raw = requests.get(background).content
+        bg = Image.open(BytesIO(bg_raw)).convert("RGBA")
 
-        avatar_url = member.display_avatar.replace(size=256).url
-        pfp_data = requests.get(avatar_url)
-        pfp = Image.open(BytesIO(pfp_data.content)).convert("RGBA").resize((220, 220))
+        avatar_url = member.display_avatar.with_size(256).url
+        pfp = Image.open(BytesIO(requests.get(avatar_url).content)).convert("RGBA").resize((220,220))
 
-        mask = Image.new("L", pfp.size, 0)
-        ImageDraw.Draw(mask).ellipse((0, 0, 220, 220), fill=255)
+        mask = Image.new("L", (220,220), 0)
+        ImageDraw.Draw(mask).ellipse((0,0,220,220), fill=255)
         pfp.putalpha(mask)
-        bg.paste(pfp, (bg.width // 2 - 110, 10), pfp)
+        bg.paste(pfp, (bg.width//2 -110, 10), pfp)
 
         draw = ImageDraw.Draw(bg)
-        font_big = ImageFont.truetype("arial.ttf", 50)
-        draw.text((bg.width // 2, 260), member.name, font=font_big, fill="white", anchor="mm")
+        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 50)
+        draw.text((bg.width//2, 260), member.name, fill="white", font=font, anchor="mm")
 
         buf = BytesIO()
         bg.save(buf, format="PNG")
@@ -66,25 +76,46 @@ class Welcome(commands.Cog):
         settings = load_settings(member.guild.id)
         if not settings:
             return
+
         guild = member.guild
+
+        # Invite tracking:
+        old_invites = self.invites.get(guild.id, [])
+        new_invites = await guild.invites()
+        invite_used = None
+        
+        for old in old_invites:
+            for new in new_invites:
+                if old.code == new.code and old.uses < new.uses:
+                    invite_used = new
+                    break
+
+        self.invites[guild.id] = new_invites
+        inviter_name = invite_used.inviter.name if invite_used else "Unknown"
+        total_uses = invite_used.uses if invite_used else 0
+
+        # Role
         role = guild.get_role(settings["role_id"])
         if role:
             try:
-                await member.add_roles(role, reason="Auto welcome role")
-            except Exception as e:
-                print("Failed to give role:", e)
+                await member.add_roles(role)
+            except:
+                pass
+
+        # Send image embed
         channel = guild.get_channel(settings["channel_id"])
-        if channel is None:
+        if not channel:
             return
 
-        banner = self.generate_banner(member, settings["background"])
+        file = discord.File(self.make_banner(member, settings["background"]), filename="welcome.png")
         embed = discord.Embed(
-            description=settings["message"]
-                .replace("{member}", member.mention)
-                .replace("{count}", str(guild.member_count)),
+            description=settings["message"]\
+                .replace("{member}", member.mention)\
+                .replace("{count}", str(guild.member_count))\
+                .replace("{inviter}", inviter_name)\
+                .replace("{invites}", str(total_uses)),
             color=discord.Color.green()
         )
-        file = discord.File(banner, filename="welcome.png")
         embed.set_image(url="attachment://welcome.png")
         await channel.send(file=file, embed=embed)
 
