@@ -9,8 +9,20 @@ class AutoMod(commands.Cog):
         self.bad_words = self._get_bad_words_list()
 
         # Regex patterns are compiled once for efficiency
-        self.invite_regex = re.compile(r"(?:https?://)?(?:www\.)?(?:discord\.gg|discord\.com/invite)/\S+")
-        self.url_regex = re.compile(r"https?://\S+|www\.\S+")
+        self.invite_regex = re.compile(
+    r"(?i)"  # Case-insensitive flag
+    r"(?:https?://)?"  # Optional http:// or https://
+    r"(?:www.)?"  # Optional www.
+    r"(?:"
+        r"discord.gg/(S+)|"  # Invite codes (e.g., discord.gg/perpleXity)
+        r"discord.com/invite/(S+)|"  # Alternative invite codes
+        r"discord.com/channels/(d+/d+/d+)|"  # Message links
+        r"discord.gift/(S+)|"  # Gift links
+        r"discord.new/(S+)|"  # Template links
+        r"discord.com/template/(S+)|" # Alternative template links
+        r"cdn.discordapp.com/S+|"  # CDN attachments
+        r"media.discordapp.net/S+|" # CDN media
+        r"discord.com/api/oauth2/authorize?S+" self.url_regex = re.compile(r"https?://\S+|www\.\S+")
 
     def _get_bad_words_list(self):
         """
