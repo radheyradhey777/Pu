@@ -1,70 +1,90 @@
-import discord
-from discord import app_commands
-from discord.ext import commands
+import discord from discord import app_commands from discord.ext import commands
 
-class EmbedCog(commands.Cog):
-    def __init__(self, bot: commands.Bot):
-        self.bot = bot
+class EmbedCog(commands.Cog): def init(self, bot: commands.Bot): self.bot = bot
 
-    # Slash command: /embed
-    @app_commands.command(name="embed", description="Send an embed to a selected channel")
-    @app_commands.describe(
-        channel="Channel where the embed will be sent",
-        title="Title of the embed",
-        description="Description of the embed",
-        image_url="Image URL to include (optional)"
+# Slash command: /embed
+@app_commands.command(name="embed", description="Send an embed to a selected channel")
+@app_commands.describe(
+    channel="Channel where the embed will be sent",
+    title="Title of the embed",
+    description="Description of the embed",
+    image_url="Image URL to include (optional)"
+)
+@app_commands.checks.has_permissions(administrator=True)  # Restrict to administrators
+async def embed(
+    self,
+    interaction: discord.Interaction,
+    channel: discord.TextChannel,
+    title: str,
+    description: str,
+    image_url: str = None
+):
+    # Create embed
+    embed = discord.Embed(
+        title=title,
+        description=description,
+        color=discord.Color.blue()
     )
-    @app_commands.checks.has_permissions(administrator=True)  # Restrict to administrators
-    async def embed(
-        self,
-        interaction: discord.Interaction,
-        channel: discord.TextChannel,
-        title: str,
-        description: str,
-        image_url: str = None
-    ):
-        # Create embed
-        embed = discord.Embed(
-            title=title,
-            description=description,
-            color=discord.Color.blue()
-        )
-        if image_url:
-            embed.set_image(url=image_url)
+    if image_url:
+        embed.set_image(url=image_url)
 
-        # Send embed to target channel
-        await channel.send(embed=embed)
+    # Send embed to target channel
+    await channel.send(embed=embed)
 
-        # Confirm to user
+    # Confirm to user
+    await interaction.response.send_message(
+        f"✅ Embed sent to {channel.mention}",
+        ephemeral=True
+    )
+
+# Slash command: /message
+@app_commands.command(name="message", description="Send a normal message to a selected channel")
+@app_commands.describe(
+    channel="Channel where the message will be sent",
+    content="Content of the message"
+)
+@app_commands.checks.has_permissions(administrator=True)
+async def message(
+    self,
+    interaction: discord.Interaction,
+    channel: discord.TextChannel,
+    content: str
+):
+    # Send normal text message
+    await channel.send(content)
+
+    # Confirm to user
+    await interaction.response.send_message(
+        f"✅ Message sent to {channel.mention}",
+        ephemeral=True
+    )
+
+# Error handler for the embed command
+@embed.error
+async def embed_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.errors.MissingPermissions):
         await interaction.response.send_message(
-            f"✅ Embed sent to {channel.mention}",
+            "❌ You need **Administrator** permission to use this command.",
             ephemeral=True
         )
+    else:
+        await interaction.response.send_message(
+            "❌ An error occurred while running the command.",
+            ephemeral=True
+        )
+        print(f"Error in /embed command: {error}")
 
-    # Error handler for the embed command
-    @embed.error
-    async def embed_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-        if isinstance(error, app_commands.errors.MissingPermissions):
-            await interaction.response.send_message(
-                "❌ You need **Administrator** permission to use this command.",
-                ephemeral=True
-            )
-        else:
-            await interaction.response.send_message(
-                "❌ An error occurred while running the command.",
-                ephemeral=True
-            )
-            print(f"Error in /embed command: {error}")
+# Sync command on bot ready
+@commands.Cog.listener()
+async def on_ready(self):
+    try:
+        self.bot.tree.add_command(self.embed)
+        self.bot.tree.add_command(self.message)
+        print("✅ Embed and message commands loaded.")
+    except Exception as e:
+        print(f"❌ Failed to add commands: {e}")
 
-    # Sync command on bot ready
-    @commands.Cog.listener()
-    async def on_ready(self):
-        try:
-            self.bot.tree.add_command(self.embed)
-            print("✅ Embed command loaded.")
-        except Exception as e:
-            print(f"❌ Failed to add embed command: {e}")
+Setup function to load the cog
 
-# Setup function to load the cog
-async def setup(bot: commands.Bot):
-    await bot.add_cog(EmbedCog(bot))
+async def setup(bot: commands.Bot): await bot.add_cog(EmbedCog(bot))
+
