@@ -7,7 +7,7 @@ SETTINGS_FILE = "welcome_settings.json"
 
 # Pre-configured settings
 DEFAULT_SETTINGS = {
-    "channel_id": 1393882637768065054,
+    "channel_id": 1398305234442256394,
     "role_id": 1398318317135200256,
     "background": "https://cdn.discordapp.com/attachments/1391812903748894862/1401546686458757273/images_1.jpg?ex=68915451&is=689002d1&hm=63f69110ba8eb76ff0cd073ab8637477fca34730c29b48f98a8965af3c4c0b16&",
     "message": (
