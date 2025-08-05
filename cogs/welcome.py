@@ -1,7 +1,5 @@
-import discord, json, os, requests
+import discord, json, os
 from discord.ext import commands
-from PIL import Image, ImageDraw, ImageFont
-from io import BytesIO
 
 SETTINGS_FILE = "welcome_settings.json"
 
@@ -9,7 +7,6 @@ SETTINGS_FILE = "welcome_settings.json"
 DEFAULT_SETTINGS = {
     "channel_id": 1398305234442256394,
     "role_id": 1398318317135200256,
-    "background": "https://cdn.discordapp.com/attachments/1391812903748894862/1401546686458757273/images_1.jpg?ex=68915451&is=689002d1&hm=63f69110ba8eb76ff0cd073ab8637477fca34730c29b48f98a8965af3c4c0b16&",
     "message": (
         "• Welcome {member} To CoRamTix - Premium Hosting Experience\n"
         "• Members Count : {count}\n"
@@ -34,27 +31,6 @@ class Welcome(commands.Cog):
     async def on_ready(self):
         for guild in self.bot.guilds:
             self.invites[guild.id] = await guild.invites()
-
-    def make_banner(self, member, background):
-        bg_raw = requests.get(background).content
-        bg = Image.open(BytesIO(bg_raw)).convert("RGBA")
-
-        avatar_url = member.display_avatar.with_size(256).url
-        pfp = Image.open(BytesIO(requests.get(avatar_url).content)).convert("RGBA").resize((220, 220))
-
-        mask = Image.new("L", (220, 220), 0)
-        ImageDraw.Draw(mask).ellipse((0, 0, 220, 220), fill=255)
-        pfp.putalpha(mask)
-        bg.paste(pfp, (bg.width // 2 - 110, 10), pfp)
-
-        draw = ImageDraw.Draw(bg)
-        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 50)
-        draw.text((bg.width // 2, 260), member.name, fill="white", font=font, anchor="mm")
-
-        buf = BytesIO()
-        bg.save(buf, format="PNG")
-        buf.seek(0)
-        return buf
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
@@ -84,12 +60,11 @@ class Welcome(commands.Cog):
             except:
                 pass
 
-        # Send welcome
+        # Send embed welcome message (no banner background)
         channel = guild.get_channel(settings["channel_id"])
         if not channel:
             return
 
-        file = discord.File(self.make_banner(member, settings["background"]), filename="welcome.png")
         embed = discord.Embed(
             description=settings["message"]
                 .replace("{member}", member.mention)
@@ -98,8 +73,10 @@ class Welcome(commands.Cog):
                 .replace("{invites}", str(total_uses)),
             color=discord.Color.green()
         )
-        embed.set_image(url="attachment://welcome.png")
-        await channel.send(file=file, embed=embed)
+        embed.set_thumbnail(url=member.display_avatar.url)
+        embed.set_footer(text="CoRamTix - Premium Hosting Experience")
+
+        await channel.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(Welcome(bot))
