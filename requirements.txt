@@ -1,5 +1,6 @@
-discord.py>=2.3.2
-python-dotenv
-Flask
-requests
-Pillow
+discord.py>=2.5.2
+fuzzywuzzy>=0.18.0
+python-dotenv>=1.0.1
+Flask>=3.1.1
+requests>=2.32.4
+Pillow>=11.3.0
