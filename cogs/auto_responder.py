@@ -8,7 +8,7 @@ from discord.ui import Button, View
 
 KNOWLEDGE_FILE = "knowledge_base.json"
 
-# ----------- File Utilities for the knowledge base --------------
+# File utilities
 def load_knowledge_base():
     try:
         with open(KNOWLEDGE_FILE, 'r', encoding='utf-8') as f:
@@ -20,7 +20,7 @@ def save_knowledge_base(kb):
     with open(KNOWLEDGE_FILE, 'w', encoding='utf-8') as f:
         json.dump(kb, f, ensure_ascii=False, indent=2)
 
-# ----------- Pagination UI with Discord Buttons -------------
+# Pagination buttons
 class PlanPaginator(View):
     def __init__(self, plans, send_embed_fn, user):
         super().__init__(timeout=120)
@@ -32,7 +32,7 @@ class PlanPaginator(View):
     async def update_message(self, interaction):
         embed = self.send_embed_fn(self.plans[self.index])
         await interaction.response.edit_message(embed=embed, view=self)
-    
+
     @discord.ui.button(label="Prev", style=discord.ButtonStyle.secondary)
     async def prev_btn(self, interaction: discord.Interaction, button: Button):
         if interaction.user != self.user:
@@ -41,7 +41,7 @@ class PlanPaginator(View):
         if self.index > 0:
             self.index -= 1
             await self.update_message(interaction)
-    
+
     @discord.ui.button(label="Next", style=discord.ButtonStyle.secondary)
     async def next_btn(self, interaction: discord.Interaction, button: Button):
         if interaction.user != self.user:
@@ -51,14 +51,12 @@ class PlanPaginator(View):
             self.index += 1
             await self.update_message(interaction)
 
-# ------------- The Main Cog ---------------------------------------
 class AutoResponderPro(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.cooldowns = {}
         self.knowledge_base = load_knowledge_base()
 
-        # --- Keyword map for EN+HI ---
         self.keyword_map = {
             "greeting": ["hello", "hi", "hey", "namaste", "salam", "yo"],
             "all_minecraft_plans": ["all minecraft", "sare minecraft", "mc plans", "सभी minecraft"],
@@ -72,18 +70,25 @@ class AutoResponderPro(commands.Cog):
         }
 
         self.static_replies = {
-            "support":
-                "Agar aapko koi bhi technical issue aa raha hai, to kripya hamari website par jaakar support ticket banayein. Team madad karegi:
-https://coramtix.in/submitticket.php",
-            "greeting":
-                "Hello! Main CoRamTix ka AI Assistant hoon. Aap pooch sakte hain '12GB RAM wala minecraft plan' ya '500rs tak ka vps'. Visit: https://coramtix.in/",
-            "thank_you":
-                "You're welcome! 😊 Agar aapko aur koi jaankari chahiye to poochiye.",
-            "info_vps":
-                "VPS (Virtual Private Server) ek powerful hosting hai. Detailed info: https://coramtix.in/vps-hosting",
-            "info_minecraft":
-                "Minecraft Hosting ek optimized service hai. Detailed info: https://coramtix.in/minecraft-hosting",
-            "fallback":
+            "support": (
+                "Agar aapko koi bhi technical issue aa raha hai, to kripya hamari website par jaakar support ticket banayein. "
+                "Team madad karegi:
+https://coramtix.in/submitticket.php"
+            ),
+            "greeting": (
+                "Hello! Main CoRamTix ka AI Assistant hoon. Aap pooch sakte hain '12GB RAM wala minecraft plan' ya '500rs tak ka vps'. "
+                "Visit: https://coramtix.in/"
+            ),
+            "thank_you": (
+                "You're welcome! 😊 Agar aapko aur koi jaankari chahiye to poochiye."
+            ),
+            "info_vps": (
+                "VPS (Virtual Private Server) ek powerful hosting hai. Detailed info: https://coramtix.in/vps-hosting"
+            ),
+            "info_minecraft": (
+                "Minecraft Hosting ek optimized service hai. Detailed info: https://coramtix.in/minecraft-hosting"
+            ),
+            "fallback": (
                 "Maaf kijiye, main aapki query nahi samajh paya. उदाहरण:
 "
                 "- `8GB RAM wala minecraft plan`
@@ -93,13 +98,14 @@ https://coramtix.in/submitticket.php",
                 "- `सारे minecraft plans`
 "
                 "- `compare iron vs gold plan`"
+            ),
         }
 
-    # ------ ADMIN: Add/Remove plans (Owner only) -------
+    # Admin Commands
     @commands.command(hidden=True)
     @commands.is_owner()
     async def add_plan(self, ctx, *, data):
-        """Add plan: JSON object, owner-only"""
+        """Add plan (JSON text). Owner-only."""
         try:
             plan = json.loads(data)
             plan_id = plan.get('id') or plan['name'].lower().replace(' ', '_')
@@ -115,11 +121,11 @@ https://coramtix.in/submitticket.php",
         try:
             removed = self.knowledge_base.pop(plan_id, None)
             save_knowledge_base(self.knowledge_base)
-            await ctx.send(f"✅ Removed: {plan_id}" if removed else f"❌ Not found: {plan_id}")
+            msg = f"✅ Removed: {plan_id}" if removed else f"❌ Not found: {plan_id}"
+            await ctx.send(msg)
         except Exception as e:
             await ctx.send(f"❌ Error: {e}")
 
-    # ------ Plan Embedding ------
     def format_plan_embed(self, plan):
         typ = plan.get('type', '')
         desc = f"**Type**: {typ.upper()}
@@ -132,7 +138,7 @@ https://coramtix.in/submitticket.php",
         )
         embed.add_field(name="Price", value=f"**₹{plan.get('price', '--')}/month**", inline=True)
         embed.add_field(name="RAM", value=f"{plan.get('ram', '--')} GB", inline=True)
-        if plan.get('type', '') == 'vps':
+        if typ == 'vps':
             embed.add_field(name="CPU Cores", value=f"{plan.get('cores', '--')}", inline=True)
         else:
             embed.add_field(name="CPU", value=f"{plan.get('cpu', '--')}%", inline=True)
@@ -140,7 +146,6 @@ https://coramtix.in/submitticket.php",
         embed.set_footer(text="Order: CoRamTix.in")
         return embed
 
-    # ------ Fuzzy plan matching ------
     def fuzzy_match_plan(self, user_input):
         plans = list(self.knowledge_base.values())
         if not plans:
@@ -152,7 +157,6 @@ https://coramtix.in/submitticket.php",
             return [plans[ix]]
         return []
 
-    # ------ Query Parsing ------
     def parse_query(self, text):
         content = text.lower()
         q = {"type": None, "ram": None, "price": None, "raw": text}
@@ -168,7 +172,6 @@ https://coramtix.in/submitticket.php",
             q["price"] = int(price.group(1))
         return q
 
-    # ------ Plan filtering by type/ram/price ------
     def filter_plans(self, q):
         res = []
         for plan in self.knowledge_base.values():
@@ -183,7 +186,6 @@ https://coramtix.in/submitticket.php",
                 res.append(plan)
         return res
 
-    # ------ Message sending logic ------
     async def send_plan_results(self, message, plans):
         plans = sorted(plans, key=lambda x: int(x.get('price', 99999)))
         if not plans:
@@ -196,8 +198,7 @@ https://coramtix.in/submitticket.php",
         embed = self.format_plan_embed(plans[0])
         paginator = PlanPaginator(plans, self.format_plan_embed, message.author)
         await message.channel.send(content=f"Total {len(plans)} plans found. Use Next/Prev ➡️⬅️:", embed=embed, view=paginator)
-    
-    # ------ Main on_message listener ------
+
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.author.bot or (message.guild and message.content.startswith(self.bot.command_prefix)):
@@ -211,7 +212,7 @@ https://coramtix.in/submitticket.php",
         if len(content) < 3:
             return
 
-        # --- Static intents ---
+        # Static reply shortcuts
         for intent, keywords in self.keyword_map.items():
             if intent in self.static_replies and any(k in content for k in keywords):
                 await message.channel.send(self.static_replies[intent])
@@ -226,7 +227,7 @@ https://coramtix.in/submitticket.php",
                 await message.channel.send(self.static_replies['info_minecraft'])
                 self.cooldowns[channel_id] = now + cooldown_time
                 return
-        # --- Compare (two plan names) ---
+        # Comparison
         if any(k in content for k in self.keyword_map["comparison"]):
             found = []
             for plan in self.knowledge_base.values():
@@ -236,7 +237,7 @@ https://coramtix.in/submitticket.php",
                 await self.send_plan_results(message, found[:2])
                 self.cooldowns[channel_id] = now + cooldown_time
                 return
-        # --- All plans (MC/VPS) ---
+        # All plan listings
         if any(k in content for k in self.keyword_map["all_minecraft_plans"]):
             mc_plans = [p for p in self.knowledge_base.values() if p.get('type', '') == 'minecraft']
             await self.send_plan_results(message, mc_plans)
@@ -247,10 +248,9 @@ https://coramtix.in/submitticket.php",
             await self.send_plan_results(message, vps_plans)
             self.cooldowns[channel_id] = now + cooldown_time
             return
-        # --- Main query parsing & fuzzy matching ---
+        # Name match
         query = self.parse_query(content)
         found = []
-        # Try exact plan name match first
         for plan in self.knowledge_base.values():
             if any(len(kw) > 3 and kw.lower() in content for kw in plan.get("keywords", [])):
                 found.append(plan)
@@ -258,24 +258,23 @@ https://coramtix.in/submitticket.php",
             await self.send_plan_results(message, found)
             self.cooldowns[channel_id] = now + cooldown_time
             return
-        # Fuzzy matching
+        # Fuzzy match
         if not found:
             found = self.fuzzy_match_plan(content)
             if found:
                 await self.send_plan_results(message, found)
                 self.cooldowns[channel_id] = now + cooldown_time
                 return
-        # Feature query filtering
+        # Query filter
         candidates = self.filter_plans(query)
         if candidates:
             await self.send_plan_results(message, candidates)
             self.cooldowns[channel_id] = now + cooldown_time
             return
-        # Fallback if any plan intent detected
+        # Fallback only if intent detected
         if any(x is not None for x in [query["type"], query["ram"], query["price"]]):
             await message.channel.send(self.static_replies['fallback'])
             self.cooldowns[channel_id] = now + cooldown_time
 
-# --- Required for discord.py cogs ---
 async def setup(bot):
     await bot.add_cog(AutoResponderPro(bot))
