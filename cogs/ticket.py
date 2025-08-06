@@ -16,11 +16,14 @@ CONFIG = {
 
 logger = logging.getLogger(__name__)
 
+
 def sanitize_name(name: str) -> str:
     return re.sub(r'[^a-z0-9_-]', '', name.lower().replace(" ", "-"))
 
+
 async def has_support_role(member: discord.Member) -> bool:
     return any(role.id in CONFIG["SUPPORT_ROLE_IDS"] for role in member.roles)
+
 
 async def send_log(message: str, guild: discord.Guild):
     if CONFIG["LOG_CHANNEL_ID"] is None:
@@ -29,17 +32,26 @@ async def send_log(message: str, guild: discord.Guild):
     if channel:
         await channel.send(message)
 
+
 class TicketModal(discord.ui.Modal):
     def __init__(self, reason: str):
         super().__init__(title=f"{reason} Ticket")
         self.reason = reason
+
         self.add_item(discord.ui.TextInput(label="Your Discord Name", placeholder="Your full name", required=True))
 
         if reason == "Private Support":
             self.add_item(discord.ui.TextInput(label="Describe your issue", style=discord.TextStyle.paragraph, required=True))
+
         elif reason == "Purchase Product":
             self.add_item(discord.ui.TextInput(label="Product to purchase", required=True))
             self.add_item(discord.ui.TextInput(label="Preferred Payment Method", placeholder="e.g., UPI, Paytm", required=True))
+
+        elif reason == "Report":
+            self.add_item(discord.ui.TextInput(label="Report Details", style=discord.TextStyle.paragraph, required=True))
+
+        elif reason == "Sponsorship":
+            self.add_item(discord.ui.TextInput(label="Why should we sponsor you?", style=discord.TextStyle.paragraph, required=True))
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
@@ -85,21 +97,26 @@ class TicketModal(discord.ui.Modal):
             logger.exception("Ticket creation failed")
             await interaction.response.send_message("❌ Ticket creation failed.", ephemeral=True)
 
+
 class TicketReasonSelect(discord.ui.Select):
     def __init__(self):
         options = [
             discord.SelectOption(label="Private Support", description="Technical or account issues", emoji="🔧"),
-            discord.SelectOption(label="Purchase Product", description="Buy a hosting product", emoji="💸")
+            discord.SelectOption(label="Purchase Product", description="Buy a hosting product", emoji="💸"),
+            discord.SelectOption(label="Report", description="Report a user, server or issue", emoji="📢"),
+            discord.SelectOption(label="Sponsorship", description="Apply for partnership or sponsorship", emoji="🤝")
         ]
         super().__init__(placeholder="Choose ticket reason", options=options)
 
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.send_modal(TicketModal(self.values[0]))
 
+
 class TicketView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(TicketReasonSelect())
+
 
 class TicketManagementView(discord.ui.View):
     def __init__(self):
@@ -130,6 +147,7 @@ class TicketManagementView(discord.ui.View):
             logger.exception("Failed to close ticket")
             await interaction.response.send_message("❌ Failed to close ticket.", ephemeral=True)
 
+
 class TicketCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -143,16 +161,18 @@ class TicketCog(commands.Cog):
         if channel:
             await channel.purge(limit=5)
             embed = discord.Embed(
-                title="<:cc:1399375648476102667> Cloud Cash| Support",
+                title="<:cc:1399375648476102667> CoramTix | Support",
                 description=(
                     "**Need support or want to buy something?**\n"
                     "Open a ticket by selecting a category below.\n\n"
                     "📌 **Options**:\n"
                     "• 🔧 Private Support – Get technical help\n"
-                    "• 💸 Purchase Product – Order hosting packages\n\n"
+                    "• 💸 Purchase Product – Order hosting packages\n"
+                    "• 📢 Report – Report users/servers/problems\n"
+                    "• 🤝 Sponsorship – Apply for partner/sponsor\n\n"
                     "⛔ **Rules**:\n"
                     "• No spam\n"
-                    "• No fake tickets\n"
+                    "• Provide valid information\n"
                     "• One ticket per user"
                 ),
                 color=discord.Color.blue()
@@ -164,6 +184,7 @@ class TicketCog(commands.Cog):
     async def on_ready(self):
         self.bot.add_view(TicketView())
         self.bot.add_view(TicketManagementView())
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(TicketCog(bot))
