@@ -1,19 +1,19 @@
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 class MassDM(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(name="mdm")
-    @commands.has_permissions(administrator=True)
-    async def mass_dm(self, ctx, *, message: str):
-        """Send a DM to all members in the server."""
-        await ctx.send("📨 Sending DMs...")
+    @app_commands.command(name="mdm", description="Send a DM to all members in the server")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def mass_dm(self, interaction: discord.Interaction, message: str):
+        await interaction.response.send_message("📨 Sending DMs... Please wait.", ephemeral=True)
 
         sent = 0
         failed = 0
-        for member in ctx.guild.members:
+        for member in interaction.guild.members:
             if member.bot:
                 continue
             try:
@@ -22,7 +22,7 @@ class MassDM(commands.Cog):
             except:
                 failed += 1
 
-        await ctx.send(f"✅ Sent: {sent} | ❌ Failed: {failed}")
+        await interaction.followup.send(f"✅ Sent: {sent} | ❌ Failed: {failed}", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(MassDM(bot))
