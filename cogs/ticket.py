@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 import logging
 import re
+import asyncio
 
 CONFIG = {
     "GUILD_ID": 1380792281048678441,
@@ -38,24 +39,54 @@ class TicketModal(discord.ui.Modal):
         super().__init__(title=f"{reason} Ticket")
         self.reason = reason
 
-        self.add_item(discord.ui.TextInput(label="Your Discord Name", placeholder="Your full name", required=True))
+        # Save as attributes so we can access their values
+        self.name_input = discord.ui.TextInput(
+            label="Your Discord Name",
+            placeholder="Your full name",
+            required=True
+        )
+        self.add_item(self.name_input)
 
         if reason == "Private Support":
-            self.add_item(discord.ui.TextInput(label="Describe your issue", style=discord.TextStyle.paragraph, required=True))
+            self.issue_input = discord.ui.TextInput(
+                label="Describe your issue",
+                style=discord.TextStyle.paragraph,
+                required=True
+            )
+            self.add_item(self.issue_input)
 
         elif reason == "Purchase Product":
-            self.add_item(discord.ui.TextInput(label="Product to purchase", required=True))
-            self.add_item(discord.ui.TextInput(label="Preferred Payment Method", placeholder="e.g., UPI, Paytm", required=True))
+            self.product_input = discord.ui.TextInput(
+                label="Product to purchase",
+                required=True
+            )
+            self.payment_input = discord.ui.TextInput(
+                label="Preferred Payment Method",
+                placeholder="e.g., UPI, Paytm",
+                required=True
+            )
+            self.add_item(self.product_input)
+            self.add_item(self.payment_input)
 
         elif reason == "Report":
-            self.add_item(discord.ui.TextInput(label="Report Details", style=discord.TextStyle.paragraph, required=True))
+            self.report_input = discord.ui.TextInput(
+                label="Report Details",
+                style=discord.TextStyle.paragraph,
+                required=True
+            )
+            self.add_item(self.report_input)
 
         elif reason == "Sponsorship":
-            self.add_item(discord.ui.TextInput(label="Why should we sponsor you?", style=discord.TextStyle.paragraph, required=True))
+            self.sponsor_input = discord.ui.TextInput(
+                label="Why should we sponsor you?",
+                style=discord.TextStyle.paragraph,
+                required=True
+            )
+            self.add_item(self.sponsor_input)
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
-            ticket_name = sanitize_name(f"{CONFIG['TICKET_PREFIX']}-{interaction.user.name}")
+            ticket_name = sanitize_name(f"{CONFIG['TICKET_PREFIX']}-{interaction.user.id}")
             existing = discord.utils.get(interaction.guild.text_channels, name=ticket_name)
             if existing:
                 return await interaction.response.send_message(f"⚠️ Ticket already open: {existing.mention}", ephemeral=True)
@@ -86,14 +117,17 @@ class TicketModal(discord.ui.Modal):
                 timestamp=interaction.created_at
             )
             embed.add_field(name="User", value=interaction.user.mention, inline=False)
-            for field in self.children:
-                embed.add_field(name=field.label, value=field.value or "None", inline=False)
+
+            # Collect values dynamically
+            for child in self.children:
+                if isinstance(child, discord.ui.TextInput):
+                    embed.add_field(name=child.label, value=child.value or "None", inline=False)
 
             await channel.send(content=f"{interaction.user.mention} <@&{CONFIG['SUPPORT_ROLE_IDS'][0]}>", embed=embed, view=TicketManagementView())
             await interaction.response.send_message(f"✅ Ticket created: {channel.mention}", ephemeral=True)
             await send_log(f"📥 New ticket from {interaction.user.mention} in {channel.mention}", interaction.guild)
 
-        except Exception as e:
+        except Exception:
             logger.exception("Ticket creation failed")
             await interaction.response.send_message("❌ Ticket creation failed.", ephemeral=True)
 
@@ -134,16 +168,18 @@ class TicketManagementView(discord.ui.View):
                 if isinstance(target, discord.Member):
                     perms.send_messages = False
                     overwrites[target] = perms
+
             await channel.edit(name=f"{CONFIG['CLOSED_PREFIX']}-{channel.name.split('-', 1)[1]}", overwrites=overwrites)
             await channel.send(embed=discord.Embed(description=f"🔒 Ticket closed by {interaction.user.mention}", color=discord.Color.red()))
 
             if CONFIG["DELETE_AFTER_CLOSE"]:
                 await channel.send("🗑️ Deleting this ticket shortly...")
-                await channel.delete(delay=5)
+                await asyncio.sleep(5)
+                await channel.delete()
             else:
                 await interaction.response.send_message("✅ Ticket closed.", ephemeral=True)
 
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to close ticket")
             await interaction.response.send_message("❌ Failed to close ticket.", ephemeral=True)
 
