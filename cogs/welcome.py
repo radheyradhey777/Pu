@@ -5,8 +5,8 @@ SETTINGS_FILE = "welcome_settings.json"
 
 # Pre-configured settings
 DEFAULT_SETTINGS = {
-    "channel_id": 1398305234442256394,
-    "role_id": 1398318317135200256,
+    "channel_id": 1404105987664646215,
+    "role_id": 1404105974041542749,
     "message": (
         "• Welcome {member} To CoRamTix - Premium Hosting Experience\n"
         "• Members Count : {count}\n"
