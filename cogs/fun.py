@@ -1,19 +1,20 @@
 import discord
 from discord.ext import commands
 
-# Put your IDs here or load from config
-TARGET_ROLE_ID = 1404526602649341963
-TARGET_CHANNEL_ID = 1404105990198001664
+VERIFY_CHANNEL_ID = 1404105990198001664  # Jahan verify message jayega
+VERIFIED_ROLE_ID = 1405000000000000000  # Yahan apne Verified role ki ID dalein
 
 class Fun(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        print("Fun Cog loaded successfully.")
+        self.verify_message_id = None
 
-    @commands.command()
-    @commands.has_permissions(administrator=True)
-    async def setupverify(self, ctx):
-        """Posts the verification message and adds a reaction."""
+    async def send_verify_message(self):
+        channel = self.bot.get_channel(VERIFY_CHANNEL_ID)
+        if channel is None:
+            print(f"Verify channel with ID {VERIFY_CHANNEL_ID} not found.")
+            return
+        
         embed = discord.Embed(
             title="Welcome to CoRamTix Hosting!",
             description="To ensure a safe and productive environment, please adhere to the following rules. React with ✅ below to agree and gain access to the server.",
@@ -53,41 +54,46 @@ class Fun(commands.Cog):
         )
         embed.set_footer(text="Thank you for being part of our community!")
 
-        await ctx.message.delete()
-        msg = await ctx.send(embed=embed)
+        msg = await channel.send(embed=embed)
         await msg.add_reaction("✅")
-
-    @setupverify.error
-    async def setupverify_error(self, ctx, error):
-        if isinstance(error, commands.MissingPermissions):
-            await ctx.send("You do not have permission to use this command.", delete_after=10)
-
-    @commands.command()
-    async def hello(self, ctx):
-        await ctx.send(f"Hello, {ctx.author.mention}!")
+        self.verify_message_id = msg.id  # store message ID to track reactions
 
     @commands.Cog.listener()
-    async def on_message(self, message):
-        if message.author == self.bot.user:
-            return
-        await self.bot.process_commands(message)
-        if not message.guild:
+    async def on_ready(self):
+        print(f"{self.bot.user} is ready!")
+        # Send verify message once on startup, optionally add check so it doesn't spam every restart
+        # (You can add logic to check if message already exists)
+        await self.send_verify_message()
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        # Ye event har reaction ke liye fire hota hai (guild me ya dm me)
+        if payload.message_id != self.verify_message_id:
+            return  # Agar verify message pe reaction nahi hai to ignore karein
+
+        if str(payload.emoji) != "✅":
+            return  # Sirf ✅ emoji pe kaam karein
+
+        guild = self.bot.get_guild(payload.guild_id)
+        if guild is None:
             return
 
-        target_role = discord.utils.get(message.author.roles, id=TARGET_ROLE_ID)
-        if target_role:
-            target_channel = self.bot.get_channel(TARGET_CHANNEL_ID)
-            if target_channel:
-                alert_msg = (
-                    f"**Alert!** A message was sent by a user with the '{target_role.name}' role.\n"
-                    f"> **User:** {message.author.mention} (`{message.author.id}`)\n"
-                    f"> **Channel:** {message.channel.mention}\n"
-                    f"> **Message:** {message.content}\n"
-                    f"> [Jump to Message]({message.jump_url})"
-                )
-                await target_channel.send(alert_msg)
-            else:
-                print(f"Error: Could not find channel with ID {TARGET_CHANNEL_ID}")
+        role = guild.get_role(VERIFIED_ROLE_ID)
+        if role is None:
+            print(f"Verified role ID {VERIFIED_ROLE_ID} not found!")
+            return
+
+        member = guild.get_member(payload.user_id)
+        if member is None:
+            return
+
+        # Add role agar user ke paas nahi hai
+        if role not in member.roles:
+            try:
+                await member.add_roles(role, reason="User verified via reaction.")
+                print(f"Added Verified role to {member.display_name}")
+            except Exception as e:
+                print(f"Failed to add Verified role: {e}")
 
 async def setup(bot):
     await bot.add_cog(Fun(bot))
