@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 
 VERIFY_CHANNEL_ID = 1404105990198001664  # Jahan verify message jayega
-VERIFIED_ROLE_ID = 1405000000000000000  # Yahan apne Verified role ki ID dalein
+VERIFIED_ROLE_ID = 1404526602649341963  # Yahan apne Verified role ki ID dalein
 
 class Fun(commands.Cog):
     def __init__(self, bot):
