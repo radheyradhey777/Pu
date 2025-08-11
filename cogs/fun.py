@@ -1,21 +1,19 @@
 import discord
 from discord.ext import commands
-import discord.utils
 
-# --- CONFIGURATION ---
-TARGET_ROLE_ID = 1404526602649341963  # ⚠️ Your Role ID here
-TARGET_CHANNEL_ID = 1404105990198001664  # ⚠️ Your Channel ID here
+# Put your IDs here or load from config
+TARGET_ROLE_ID = 1404526602649341963
+TARGET_CHANNEL_ID = 1404105990198001664
 
 class Fun(commands.Cog):
-    def __init__(self, bot: commands.Bot):
+    def __init__(self, bot):
         self.bot = bot
         print("Fun Cog loaded successfully.")
 
     @commands.command()
     @commands.has_permissions(administrator=True)
-    async def setupverify(self, ctx: commands.Context):
+    async def setupverify(self, ctx):
         """Posts the verification message and adds a reaction."""
-        
         embed = discord.Embed(
             title="Welcome to CoRamTix Hosting!",
             description="To ensure a safe and productive environment, please adhere to the following rules. React with ✅ below to agree and gain access to the server.",
@@ -56,46 +54,40 @@ class Fun(commands.Cog):
         embed.set_footer(text="Thank you for being part of our community!")
 
         await ctx.message.delete()
-        sent_message = await ctx.send(embed=embed)
-        await sent_message.add_reaction("✅")
+        msg = await ctx.send(embed=embed)
+        await msg.add_reaction("✅")
 
     @setupverify.error
-    async def setupverify_error(self, ctx: commands.Context, error):
+    async def setupverify_error(self, ctx, error):
         if isinstance(error, commands.MissingPermissions):
             await ctx.send("You do not have permission to use this command.", delete_after=10)
 
     @commands.command()
-    async def hello(self, ctx: commands.Context):
-        """Says hello back to the user"""
+    async def hello(self, ctx):
         await ctx.send(f"Hello, {ctx.author.mention}!")
 
     @commands.Cog.listener()
-    async def on_message(self, message: discord.Message):
-        # Prevent the bot from responding to itself
+    async def on_message(self, message):
         if message.author == self.bot.user:
             return
-        # Process commands so commands still work
         await self.bot.process_commands(message)
-
         if not message.guild:
             return
-        
-        # Get the role from the member's roles by ID
+
         target_role = discord.utils.get(message.author.roles, id=TARGET_ROLE_ID)
-        
         if target_role:
             target_channel = self.bot.get_channel(TARGET_CHANNEL_ID)
             if target_channel:
-                auto_message = (
+                alert_msg = (
                     f"**Alert!** A message was sent by a user with the '{target_role.name}' role.\n"
                     f"> **User:** {message.author.mention} (`{message.author.id}`)\n"
                     f"> **Channel:** {message.channel.mention}\n"
                     f"> **Message:** {message.content}\n"
                     f"> [Jump to Message]({message.jump_url})"
                 )
-                await target_channel.send(auto_message)
+                await target_channel.send(alert_msg)
             else:
                 print(f"Error: Could not find channel with ID {TARGET_CHANNEL_ID}")
 
-async def setup(bot: commands.Bot):
+async def setup(bot):
     await bot.add_cog(Fun(bot))
