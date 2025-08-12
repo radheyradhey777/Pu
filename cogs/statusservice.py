@@ -11,7 +11,7 @@ class StatusService(commands.Cog):
             "Node 2": "https://node2.coramtix.in/",
             "Node 3": "https://node3.coramtix.in/",
         }
-        self.paid_role_id = 123456789012345678  # Replace with your role ID (int)
+        self.paid_role_id = 1404553534157885592  # Replace with your role ID (int)
         self.last_overall_status = None
         self.check_services.start()
 
