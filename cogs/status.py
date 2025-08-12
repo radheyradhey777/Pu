@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands, tasks
 import os
 
-TICKET_CATEGORY_ID = 1393886882668220486
+TICKET_CATEGORY_ID = 1404116391778320586
 GUILD_ID = 1380792281048678441
 
 class Status(commands.Cog):
