@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands, tasks
 import aiohttp
 
-class StatusMonitor(commands.Cog):
+class StatusService(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.services = {
@@ -11,9 +11,8 @@ class StatusMonitor(commands.Cog):
             "Node 2": "https://node2.coramtix.in/",
             "Node 3": "https://node3.coramtix.in/",
         }
-        self.paid_role_id = 1404553534157885592  # Replace with your role ID (int)
+        self.paid_role_id = 123456789012345678  # Replace with your role ID (int)
         self.last_overall_status = None
-        self.check_interval = 60  # seconds
         self.check_services.start()
 
     def cog_unload(self):
@@ -36,6 +35,7 @@ class StatusMonitor(commands.Cog):
             self.last_overall_status = not any_down
             return
 
+        # Only send message on status change
         if any_down != (not self.last_overall_status):
             self.last_overall_status = not any_down
 
@@ -61,6 +61,5 @@ class StatusMonitor(commands.Cog):
     async def before_check(self):
         await self.bot.wait_until_ready()
 
-
 def setup(bot):
-    bot.add_cog(StatusMonitor(bot))
+    bot.add_cog(StatusService(bot))
