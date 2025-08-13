@@ -10,7 +10,7 @@ CONFIG = {
     "TICKET_CATEGORY_ID": 1404116391778320586,
     "TICKET_PANEL_CHANNEL_ID": 1404105997215203350,
     "SUPPORT_ROLE_IDS": [1404105969599905954],
-    "LOG_CHANNEL_ID": None,  # Set to your log channel ID or None to disable
+    "LOG_CHANNEL_ID": None,  # Set your log channel ID here if needed
     "DELETE_AFTER_CLOSE": True,
     "TICKET_PREFIX": "ticket",
     "CLOSED_PREFIX": "closed"
@@ -20,12 +20,10 @@ logger = logging.getLogger(__name__)
 
 
 def sanitize_name(name: str) -> str:
-    # Only allow a-z, 0-9, underscores and dashes, lowercased
     return re.sub(r'[^a-z0-9_-]', '', name.lower().replace(" ", "-"))
 
 
 def has_support_role(member: discord.Member) -> bool:
-    # Synchronous check for support roles
     return any(role.id in CONFIG["SUPPORT_ROLE_IDS"] for role in member.roles)
 
 
@@ -131,7 +129,6 @@ class TicketModal(discord.ui.Modal):
             )
             embed.add_field(name="User", value=interaction.user.mention, inline=False)
 
-            # Add all input fields to embed
             for child in self.children:
                 if isinstance(child, discord.ui.TextInput):
                     embed.add_field(name=child.label, value=child.value or "None", inline=False)
@@ -254,13 +251,31 @@ class TicketCog(commands.Cog):
         embed.set_image(url="https://cdn.discordapp.com/attachments/1391812903748894862/1395401983036227616/Image.png")
 
         await channel.send(embed=embed, view=TicketView())
+        await ctx.send("✅ Ticket panel setup complete!", delete_after=10)
+
+    @commands.command(name="paneltest")
+    @commands.has_permissions(administrator=True)
+    async def paneltest(self, ctx: commands.Context):
+        """Sends a test ticket panel message to the ticket panel channel."""
+        channel = ctx.guild.get_channel(CONFIG["TICKET_PANEL_CHANNEL_ID"])
+        if channel is None:
+            await ctx.send("❌ Ticket panel channel not found.", delete_after=10)
+            return
+        await channel.purge(limit=5)
+        embed = discord.Embed(
+            title="Ticket Panel Test",
+            description="This is a test ticket panel message. Use the `setup` command to create the real panel.",
+            color=discord.Color.blue()
+        )
+        await channel.send(embed=embed, view=TicketView())
+        await ctx.send("✅ Test ticket panel message sent.", delete_after=10)
 
     @commands.Cog.listener()
     async def on_ready(self):
-        # Register persistent views so buttons/selects keep working after bot restart
+        # Register persistent views on bot startup
         self.bot.add_view(TicketView())
         self.bot.add_view(TicketManagementView())
-        logger.info("TicketCog ready and views registered.")
+        logger.info("TicketCog loaded and views registered.")
 
 
 async def setup(bot: commands.Bot):
