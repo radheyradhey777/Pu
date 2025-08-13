@@ -248,7 +248,7 @@ class TicketCog(commands.Cog):
             ),
             color=discord.Color.blue()
         )
-        embed.set_image(url="https://cdn.discordapp.com/attachments/1391812903748894862/1395401983036227616/Image.png")
+        embed.set_image(url="https://cdn.discordapp.com/attachments/1378295716052729858/1400584988386267228/Image_1.png?ex=689cfdea&is=689bac6a&hm=4e585e71c9e1c0038f0829a4610dfa3af5d8df89dd5b1673633f343fa3dbe936&")
 
         await channel.send(embed=embed, view=TicketView())
         await ctx.send("✅ Ticket panel setup complete!", delete_after=10)
